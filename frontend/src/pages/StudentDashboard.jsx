@@ -1,0 +1,217 @@
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+import { resultsService } from '../services/resultsService';
+import { notificationService } from '../services/notificationService';
+import Navbar from '../components/Navbar';
+import ChangePasswordModal from '../components/ChangePasswordModal';
+import IdleWarningModal from '../components/IdleWarningModal';
+import { useIdleTimeout } from '../hooks/useIdleTimeout';
+import { FaKey, FaGraduationCap, FaBell, FaEye } from 'react-icons/fa';
+
+const StudentDashboard = () => {
+  const [results, setResults] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [notifications, setNotifications] = useState([]);
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
+
+  // Idle timeout logic
+  const handleIdle = () => {
+    logout();
+    navigate('/login', { state: { message: 'You were logged out due to inactivity' } });
+  };
+
+  const { showWarning, remainingTime, stayActive } = useIdleTimeout(handleIdle);
+
+  const handleLogoutNow = () => {
+    logout();
+    navigate('/login');
+  };
+
+  useEffect(() => {
+    fetchResults();
+    fetchNotifications();
+  }, []);
+
+  const fetchResults = async () => {
+    setLoading(true);
+    try {
+      const data = await resultsService.getStudentResults();
+      setResults(data.results || []);
+    } catch (err) {
+      setError('Failed to load results');
+    } finally {
+      setLoading(false);
+    }
+  };
+  const fetchNotifications = async () => {
+    try {
+      const data = await notificationService.getNotifications();
+      setNotifications(data.notifications || []);
+    } catch (err) {
+      console.error('Failed to load notifications:', err);
+    }
+  };
+
+  const handleViewResults = (resultId) => {
+    // Scroll to the results section or navigate to specific result
+    const element = document.getElementById(`result-${resultId}`);
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
+
+
+  const groupedResults = results.reduce((acc, result) => {
+    const key = result.year + "-" + result.semester;
+    if (!acc[key]) acc[key] = {
+      year: result.year,
+      semester: result.semester,
+      exam_name: result.exam_name,
+      results: []
+    };
+    acc[key].results.push(result);
+    return acc;
+  }, {});
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <Navbar />
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-900">Welcome, {user?.name || user?.hall_ticket_number}</h1>
+          <p className="text-gray-600 mt-2">View your exam results by semester</p>
+        </div>
+
+
+        {/* Notifications Section */}
+        {notifications.length > 0 && (
+          <div className="card mb-8">
+            <h2 className="text-2xl font-bold text-gray-900 mb-4 flex items-center">
+              <FaBell className="mr-2 text-primary-600" />
+              Notifications
+            </h2>
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Published Date
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Exam Name
+                    </th>
+                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Action
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {notifications.map((notif) => (
+                    <tr key={notif.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {notif.results_published_date_formatted || 'N/A'}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-900">
+                        {notif.exam_name || notif.message}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-center text-sm">
+                        {notif.result_id && (
+                          <button
+                            onClick={() => handleViewResults(notif.result_id)}
+                            className="inline-flex items-center px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 transition-colors"
+                          >
+                            <FaEye className="mr-2" />
+                            View Results
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+          <button onClick={() => setShowPasswordModal(true)} className="card flex items-center space-x-4 hover:shadow-lg transition-shadow">
+            <FaKey className="text-3xl text-primary-600" />
+            <div className="text-left">
+              <h3 className="font-semibold text-gray-900">Change Password</h3>
+              <p className="text-sm text-gray-600">Update your account password</p>
+            </div>
+          </button>
+          <div className="card flex items-center space-x-4">
+            <FaGraduationCap className="text-3xl text-primary-600" />
+            <div className="text-left">
+              <h3 className="font-semibold text-gray-900">Total Results</h3>
+              <p className="text-2xl font-bold text-primary-600">{results.length}</p>
+            </div>
+          </div>
+        </div>
+
+        {loading ? (
+          <div className="text-center py-12">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto"></div>
+          </div>
+        ) : error ? (
+          <div className="card bg-red-50 text-red-700">{error}</div>
+        ) : results.length === 0 ? (
+          <div className="card text-center py-12 text-gray-500">No results available yet</div>
+        ) : (
+          <div className="space-y-6">
+            {Object.entries(groupedResults).sort().map(([key, group]) => (
+              <div key={key} id={`result-${group.results[0]?.id}`} className="card">
+                <div className="mb-4">
+                  <h2 className="text-xl font-bold text-gray-900 mb-2">{group.exam_name}</h2>
+                  <p className="text-sm text-gray-600">Year {group.year} - Semester {group.semester}</p>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Subject</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Subject Code</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Grade</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Credits</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {group.results.map((result, idx) => (
+                        <tr key={idx}>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{result.subject_name}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{result.subject_code}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-primary-600">{result.grade}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{result.credits}</td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className={`px-2 py-1 text-xs rounded-full ${result.status === 'Pass' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                              {result.status}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+      <ChangePasswordModal isOpen={showPasswordModal} onClose={() => setShowPasswordModal(false)} />
+      <IdleWarningModal 
+        isOpen={showWarning} 
+        remainingSeconds={remainingTime} 
+        onStayActive={stayActive} 
+        onLogout={handleLogoutNow} 
+      />
+    </div>
+  );
+};
+
+export default StudentDashboard;

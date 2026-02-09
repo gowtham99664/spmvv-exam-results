@@ -1,0 +1,158 @@
+import openpyxl
+from openpyxl.utils.exceptions import InvalidFileException
+from django.conf import settings
+import logging
+
+logger = logging.getLogger('django')
+
+class ExcelValidator:
+    REQUIRED_COLUMNS = [
+        'Roll Number', 'Student Name'
+    ]
+    
+    ALLOWED_EXTENSIONS = ['.xlsx', '.xls']
+    MAX_FILE_SIZE = settings.FILE_UPLOAD_MAX_MEMORY_SIZE
+    
+    @staticmethod
+    def validate_file(file):
+        """Validate file type and size"""
+        errors = []
+        
+        # Check file extension
+        if not any(file.name.lower().endswith(ext) for ext in ExcelValidator.ALLOWED_EXTENSIONS):
+            errors.append(f"Invalid file format. Allowed formats: {', '.join(ExcelValidator.ALLOWED_EXTENSIONS)}")
+        
+        # Check file size
+        if file.size > ExcelValidator.MAX_FILE_SIZE:
+            errors.append(f"File size exceeds maximum allowed size of {ExcelValidator.MAX_FILE_SIZE / (1024*1024)}MB")
+        
+        return errors
+    
+    @staticmethod
+    def validate_structure(workbook):
+        """Validate Excel structure"""
+        errors = []
+        
+        try:
+            sheet = workbook.active
+            
+            if sheet.max_row < 2:
+                errors.append("Excel file is empty or has no data rows")
+                return errors
+            
+            # Get headers from first row
+            headers = []
+            for cell in sheet[1]:
+                if cell.value:
+                    headers.append(str(cell.value).strip())
+            
+            # Check required columns
+            for required_col in ExcelValidator.REQUIRED_COLUMNS:
+                if required_col not in headers:
+                    errors.append(f"Missing required column: {required_col}")
+            
+        except Exception as e:
+            errors.append(f"Error reading Excel structure: {str(e)}")
+        
+        return errors
+    
+    @staticmethod
+    def parse_excel(file):
+        """Parse Excel file and return structured data"""
+        try:
+            workbook = openpyxl.load_workbook(file, data_only=True)
+            sheet = workbook.active
+            
+            # Get headers
+            headers = []
+            for cell in sheet[1]:
+                if cell.value:
+                    headers.append(str(cell.value).strip())
+            
+            # Parse data rows
+            data = []
+            for row_idx, row in enumerate(sheet.iter_rows(min_row=2, values_only=True), start=2):
+                if not any(row):  # Skip empty rows
+                    continue
+                
+                row_data = {}
+                subjects = []
+                
+                for idx, value in enumerate(row):
+                    if idx >= len(headers):
+                        break
+                    
+                    header = headers[idx]
+                    
+                    # Basic fields
+                    if header in ExcelValidator.REQUIRED_COLUMNS:
+                        row_data[header] = value
+                    elif header in ['Overall Result', 'Overall Grade']:
+                        row_data[header] = value if value else ''
+                    # Subject fields
+                    elif 'Subject' in header:
+                        parts = header.split()
+                        if len(parts) >= 3:
+                            subject_num = parts[1]
+                            field_name = ' '.join(parts[2:])
+                            
+                            # Find or create subject entry
+                            subject = next((s for s in subjects if s.get('number') == subject_num), None)
+                            if not subject:
+                                subject = {'number': subject_num}
+                                subjects.append(subject)
+                            
+                            subject[field_name] = value
+                
+                row_data['subjects'] = subjects
+                row_data['row_number'] = row_idx
+                data.append(row_data)
+            
+            return data, None
+            
+        except InvalidFileException:
+            return None, ["Invalid Excel file format"]
+        except Exception as e:
+            logger.error(f"Error parsing Excel: {str(e)}")
+            return None, [f"Error parsing Excel file: {str(e)}"]
+    
+    @staticmethod
+    def validate_data(data):
+        """Validate parsed data"""
+        errors = []
+        
+        valid_result_types = ['Regular', 'Supplementary', 'Both', 'Regular and Supplementary']
+        valid_subject_results = ['Pass', 'Fail', 'Absent']
+        
+        for row in data:
+            row_num = row.get('row_number', 'Unknown')
+            
+            # Validate required fields
+            if not row.get('Roll Number'):
+                errors.append(f"Row {row_num}: Roll Number is required")
+            
+            if not row.get('Student Name'):
+                errors.append(f"Row {row_num}: Student Name is required")
+            
+
+            
+            # Validate subjects
+            subjects = row.get('subjects', [])
+            if not subjects:
+                errors.append(f"Row {row_num}: No subjects found")
+            
+            for subject in subjects:
+                subject_num = subject.get('number', 'Unknown')
+                
+                if not subject.get('Code'):
+                    errors.append(f"Row {row_num}, Subject {subject_num}: Subject Code is required")
+                
+                if not subject.get('Name'):
+                    errors.append(f"Row {row_num}, Subject {subject_num}: Subject Name is required")
+                
+                if not subject.get('Result'):
+                    errors.append(f"Row {row_num}, Subject {subject_num}: Result is required")
+                elif subject['Result'] not in valid_subject_results:
+                    errors.append(f"Row {row_num}, Subject {subject_num}: Invalid Result. Must be one of: {', '.join(valid_subject_results)}")
+        
+        return errors
