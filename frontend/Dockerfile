@@ -1,19 +1,24 @@
 FROM node:18-alpine
 
-# Set work directory
 WORKDIR /app
+
+# Build argument for API URL
+ARG VITE_API_URL
+ENV VITE_API_URL=${VITE_API_URL}
+
+# Limit memory for low-resource VMs
+ENV NODE_OPTIONS="--max-old-space-size=1536"
+ENV npm_config_prefer_offline=true
 
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies
-RUN npm install
+# Install with minimal memory footprint
+RUN npm ci --omit=dev --ignore-scripts || npm install --legacy-peer-deps --no-audit
 
-# Copy project files
+# Copy app files
 COPY . .
 
-# Expose port
 EXPOSE 2026
 
-# Start development server
 CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0", "--port", "2026"]

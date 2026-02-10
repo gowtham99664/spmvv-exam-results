@@ -1,0 +1,32 @@
+FROM node:18-alpine
+
+# Set work directory
+WORKDIR /app
+
+# Add build argument for API URL
+ARG VITE_API_URL
+ENV VITE_API_URL=${VITE_API_URL}
+
+# Copy package files first (for better caching)
+COPY package*.json ./
+
+# Configure npm for better performance and reliability
+RUN npm config set fetch-retries 5 && \
+    npm config set fetch-retry-mintimeout 20000 && \
+    npm config set fetch-retry-maxtimeout 120000 && \
+    npm config set registry https://registry.npmjs.org/
+
+# Install dependencies with timeout and progress
+# Use --legacy-peer-deps to avoid peer dependency conflicts
+# Use --prefer-offline to use cache when possible
+RUN npm install --legacy-peer-deps --prefer-offline --no-audit --progress=false || \
+    (npm cache clean --force && npm install --legacy-peer-deps --no-audit --progress=false)
+
+# Copy project files (this layer changes most often)
+COPY . .
+
+# Expose port
+EXPOSE 2026
+
+# Start development server with proper host binding
+CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0", "--port", "2026"]
