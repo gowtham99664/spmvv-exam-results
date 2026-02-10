@@ -56,10 +56,11 @@ class Command(BaseCommand):
                         'is_staff': True,
                         'is_superuser': True,
                         'role': 'admin',
-                        'can_view_results': True,
+                        'can_view_statistics': True,
                         'can_upload_results': True,
                         'can_delete_results': True,
                         'can_manage_users': True,
+                        'can_view_all_branches': True,
                     }
                 )
 
@@ -81,10 +82,11 @@ class Command(BaseCommand):
                     user.is_staff = True
                     user.is_superuser = True
                     user.role = 'admin'
-                    user.can_view_results = True
+                    user.can_view_statistics = True
                     user.can_upload_results = True
                     user.can_delete_results = True
                     user.can_manage_users = True
+                    user.can_view_all_branches = True
                     user.save()
                     self.stdout.write(
                         self.style.SUCCESS(

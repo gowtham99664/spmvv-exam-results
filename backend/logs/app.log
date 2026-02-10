@@ -3108,3 +3108,462 @@ WARNING 2026-02-10 13:07:36,132 log Not Found: /api/
 WARNING 2026-02-10 13:07:36,132 basehttp "GET /api/ HTTP/1.1" 404 7301
 WARNING 2026-02-10 13:09:04,393 log Unauthorized: /api/health/
 WARNING 2026-02-10 13:09:04,394 basehttp "GET /api/health/ HTTP/1.1" 401 58
+INFO 2026-02-10 14:00:02,070 basehttp "GET /api/exams/ HTTP/1.1" 200 1062
+INFO 2026-02-10 14:00:02,103 basehttp "GET /api/statistics/? HTTP/1.1" 200 4540
+INFO 2026-02-10 14:00:02,285 basehttp "GET /api/exams/ HTTP/1.1" 200 1062
+INFO 2026-02-10 14:00:02,317 basehttp "GET /api/statistics/? HTTP/1.1" 200 4540
+INFO 2026-02-10 14:00:07,062 basehttp "GET /api/exams/ HTTP/1.1" 200 1062
+INFO 2026-02-10 14:00:07,102 basehttp "GET /api/statistics/? HTTP/1.1" 200 4540
+INFO 2026-02-10 14:00:07,174 basehttp "GET /api/exams/ HTTP/1.1" 200 1062
+INFO 2026-02-10 14:00:07,243 basehttp "GET /api/statistics/? HTTP/1.1" 200 4540
+INFO 2026-02-10 14:00:23,399 basehttp "POST /api/login/ HTTP/1.1" 200 894
+INFO 2026-02-10 14:00:23,779 basehttp "GET /api/exams/ HTTP/1.1" 200 1062
+INFO 2026-02-10 14:00:23,808 basehttp "GET /api/statistics/? HTTP/1.1" 200 4540
+INFO 2026-02-10 14:00:23,945 basehttp "GET /api/statistics/? HTTP/1.1" 200 4540
+INFO 2026-02-10 14:00:24,224 basehttp "GET /api/exams/ HTTP/1.1" 200 1062
+INFO 2026-02-10 14:29:13,426 basehttp "OPTIONS /api/students/search/?q=test123 HTTP/1.1" 200 0
+ERROR 2026-02-10 14:29:14,105 log Internal Server Error: /api/students/search/
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.9/site-packages/django/db/backends/base/base.py", line 288, in ensure_connection
+    self.connect()
+  File "/usr/local/lib/python3.9/site-packages/django/utils/asyncio.py", line 26, in inner
+    return func(*args, **kwargs)
+  File "/usr/local/lib/python3.9/site-packages/django/db/backends/base/base.py", line 269, in connect
+    self.connection = self.get_new_connection(conn_params)
+  File "/usr/local/lib/python3.9/site-packages/django/utils/asyncio.py", line 26, in inner
+    return func(*args, **kwargs)
+  File "/usr/local/lib/python3.9/site-packages/django/db/backends/mysql/base.py", line 247, in get_new_connection
+    connection = Database.connect(**conn_params)
+  File "/usr/local/lib64/python3.9/site-packages/MySQLdb/__init__.py", line 121, in Connect
+    return Connection(*args, **kwargs)
+  File "/usr/local/lib64/python3.9/site-packages/MySQLdb/connections.py", line 200, in __init__
+    super().__init__(*args, **kwargs2)
+MySQLdb.OperationalError: (2002, "Can't connect to local server through socket '/var/lib/mysql/mysql.sock' (2)")
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.9/site-packages/django/core/handlers/exception.py", line 55, in inner
+    response = get_response(request)
+  File "/usr/local/lib/python3.9/site-packages/django/core/handlers/base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+  File "/usr/local/lib/python3.9/site-packages/django/views/decorators/csrf.py", line 56, in wrapper_view
+    return view_func(*args, **kwargs)
+  File "/usr/local/lib/python3.9/site-packages/django/views/generic/base.py", line 105, in view
+    return self.dispatch(request, *args, **kwargs)
+  File "/usr/local/lib/python3.9/site-packages/rest_framework/views.py", line 515, in dispatch
+    response = self.handle_exception(exc)
+  File "/usr/local/lib/python3.9/site-packages/rest_framework/views.py", line 475, in handle_exception
+    self.raise_uncaught_exception(exc)
+  File "/usr/local/lib/python3.9/site-packages/rest_framework/views.py", line 486, in raise_uncaught_exception
+    raise exc
+  File "/usr/local/lib/python3.9/site-packages/rest_framework/views.py", line 503, in dispatch
+    self.initial(request, *args, **kwargs)
+  File "/usr/local/lib/python3.9/site-packages/rest_framework/views.py", line 420, in initial
+    self.perform_authentication(request)
+  File "/usr/local/lib/python3.9/site-packages/rest_framework/views.py", line 330, in perform_authentication
+    request.user
+  File "/usr/local/lib/python3.9/site-packages/rest_framework/request.py", line 232, in user
+    self._authenticate()
+  File "/usr/local/lib/python3.9/site-packages/rest_framework/request.py", line 385, in _authenticate
+    user_auth_tuple = authenticator.authenticate(self)
+  File "/usr/local/lib/python3.9/site-packages/rest_framework_simplejwt/authentication.py", line 51, in authenticate
+    return self.get_user(validated_token), validated_token
+  File "/usr/local/lib/python3.9/site-packages/rest_framework_simplejwt/authentication.py", line 132, in get_user
+    user = self.user_model.objects.get(**{api_settings.USER_ID_FIELD: user_id})
+  File "/usr/local/lib/python3.9/site-packages/django/db/models/manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+  File "/usr/local/lib/python3.9/site-packages/django/db/models/query.py", line 635, in get
+    num = len(clone)
+  File "/usr/local/lib/python3.9/site-packages/django/db/models/query.py", line 382, in __len__
+    self._fetch_all()
+  File "/usr/local/lib/python3.9/site-packages/django/db/models/query.py", line 1886, in _fetch_all
+    self._result_cache = list(self._iterable_class(self))
+  File "/usr/local/lib/python3.9/site-packages/django/db/models/query.py", line 93, in __iter__
+    results = compiler.execute_sql(
+  File "/usr/local/lib/python3.9/site-packages/django/db/models/sql/compiler.py", line 1560, in execute_sql
+    cursor = self.connection.cursor()
+  File "/usr/local/lib/python3.9/site-packages/django/utils/asyncio.py", line 26, in inner
+    return func(*args, **kwargs)
+  File "/usr/local/lib/python3.9/site-packages/django/db/backends/base/base.py", line 329, in cursor
+    return self._cursor()
+  File "/usr/local/lib/python3.9/site-packages/django/db/backends/base/base.py", line 305, in _cursor
+    self.ensure_connection()
+  File "/usr/local/lib/python3.9/site-packages/django/utils/asyncio.py", line 26, in inner
+    return func(*args, **kwargs)
+  File "/usr/local/lib/python3.9/site-packages/django/db/backends/base/base.py", line 288, in ensure_connection
+    self.connect()
+  File "/usr/local/lib/python3.9/site-packages/django/db/utils.py", line 91, in __exit__
+    raise dj_exc_value.with_traceback(traceback) from exc_value
+  File "/usr/local/lib/python3.9/site-packages/django/db/backends/base/base.py", line 288, in ensure_connection
+    self.connect()
+  File "/usr/local/lib/python3.9/site-packages/django/utils/asyncio.py", line 26, in inner
+    return func(*args, **kwargs)
+  File "/usr/local/lib/python3.9/site-packages/django/db/backends/base/base.py", line 269, in connect
+    self.connection = self.get_new_connection(conn_params)
+  File "/usr/local/lib/python3.9/site-packages/django/utils/asyncio.py", line 26, in inner
+    return func(*args, **kwargs)
+  File "/usr/local/lib/python3.9/site-packages/django/db/backends/mysql/base.py", line 247, in get_new_connection
+    connection = Database.connect(**conn_params)
+  File "/usr/local/lib64/python3.9/site-packages/MySQLdb/__init__.py", line 121, in Connect
+    return Connection(*args, **kwargs)
+  File "/usr/local/lib64/python3.9/site-packages/MySQLdb/connections.py", line 200, in __init__
+    super().__init__(*args, **kwargs2)
+django.db.utils.OperationalError: (2002, "Can't connect to local server through socket '/var/lib/mysql/mysql.sock' (2)")
+ERROR 2026-02-10 14:29:14,398 basehttp "GET /api/students/search/?q=test123 HTTP/1.1" 500 268693
+ERROR 2026-02-10 14:29:24,808 log Internal Server Error: /api/exams/
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.9/site-packages/django/db/backends/base/base.py", line 288, in ensure_connection
+    self.connect()
+  File "/usr/local/lib/python3.9/site-packages/django/utils/asyncio.py", line 26, in inner
+    return func(*args, **kwargs)
+  File "/usr/local/lib/python3.9/site-packages/django/db/backends/base/base.py", line 269, in connect
+    self.connection = self.get_new_connection(conn_params)
+  File "/usr/local/lib/python3.9/site-packages/django/utils/asyncio.py", line 26, in inner
+    return func(*args, **kwargs)
+  File "/usr/local/lib/python3.9/site-packages/django/db/backends/mysql/base.py", line 247, in get_new_connection
+    connection = Database.connect(**conn_params)
+  File "/usr/local/lib64/python3.9/site-packages/MySQLdb/__init__.py", line 121, in Connect
+    return Connection(*args, **kwargs)
+  File "/usr/local/lib64/python3.9/site-packages/MySQLdb/connections.py", line 200, in __init__
+    super().__init__(*args, **kwargs2)
+MySQLdb.OperationalError: (2002, "Can't connect to local server through socket '/var/lib/mysql/mysql.sock' (2)")
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.9/site-packages/django/core/handlers/exception.py", line 55, in inner
+    response = get_response(request)
+  File "/usr/local/lib/python3.9/site-packages/django/core/handlers/base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+  File "/usr/local/lib/python3.9/site-packages/django/views/decorators/csrf.py", line 56, in wrapper_view
+    return view_func(*args, **kwargs)
+  File "/usr/local/lib/python3.9/site-packages/django/views/generic/base.py", line 105, in view
+    return self.dispatch(request, *args, **kwargs)
+  File "/usr/local/lib/python3.9/site-packages/rest_framework/views.py", line 515, in dispatch
+    response = self.handle_exception(exc)
+  File "/usr/local/lib/python3.9/site-packages/rest_framework/views.py", line 475, in handle_exception
+    self.raise_uncaught_exception(exc)
+  File "/usr/local/lib/python3.9/site-packages/rest_framework/views.py", line 486, in raise_uncaught_exception
+    raise exc
+  File "/usr/local/lib/python3.9/site-packages/rest_framework/views.py", line 503, in dispatch
+    self.initial(request, *args, **kwargs)
+  File "/usr/local/lib/python3.9/site-packages/rest_framework/views.py", line 420, in initial
+    self.perform_authentication(request)
+  File "/usr/local/lib/python3.9/site-packages/rest_framework/views.py", line 330, in perform_authentication
+    request.user
+  File "/usr/local/lib/python3.9/site-packages/rest_framework/request.py", line 232, in user
+    self._authenticate()
+  File "/usr/local/lib/python3.9/site-packages/rest_framework/request.py", line 385, in _authenticate
+    user_auth_tuple = authenticator.authenticate(self)
+  File "/usr/local/lib/python3.9/site-packages/rest_framework_simplejwt/authentication.py", line 51, in authenticate
+    return self.get_user(validated_token), validated_token
+  File "/usr/local/lib/python3.9/site-packages/rest_framework_simplejwt/authentication.py", line 132, in get_user
+    user = self.user_model.objects.get(**{api_settings.USER_ID_FIELD: user_id})
+  File "/usr/local/lib/python3.9/site-packages/django/db/models/manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+  File "/usr/local/lib/python3.9/site-packages/django/db/models/query.py", line 635, in get
+    num = len(clone)
+  File "/usr/local/lib/python3.9/site-packages/django/db/models/query.py", line 382, in __len__
+    self._fetch_all()
+  File "/usr/local/lib/python3.9/site-packages/django/db/models/query.py", line 1886, in _fetch_all
+    self._result_cache = list(self._iterable_class(self))
+  File "/usr/local/lib/python3.9/site-packages/django/db/models/query.py", line 93, in __iter__
+    results = compiler.execute_sql(
+  File "/usr/local/lib/python3.9/site-packages/django/db/models/sql/compiler.py", line 1560, in execute_sql
+    cursor = self.connection.cursor()
+  File "/usr/local/lib/python3.9/site-packages/django/utils/asyncio.py", line 26, in inner
+    return func(*args, **kwargs)
+  File "/usr/local/lib/python3.9/site-packages/django/db/backends/base/base.py", line 329, in cursor
+    return self._cursor()
+  File "/usr/local/lib/python3.9/site-packages/django/db/backends/base/base.py", line 305, in _cursor
+    self.ensure_connection()
+  File "/usr/local/lib/python3.9/site-packages/django/utils/asyncio.py", line 26, in inner
+    return func(*args, **kwargs)
+  File "/usr/local/lib/python3.9/site-packages/django/db/backends/base/base.py", line 288, in ensure_connection
+    self.connect()
+  File "/usr/local/lib/python3.9/site-packages/django/db/utils.py", line 91, in __exit__
+    raise dj_exc_value.with_traceback(traceback) from exc_value
+  File "/usr/local/lib/python3.9/site-packages/django/db/backends/base/base.py", line 288, in ensure_connection
+    self.connect()
+  File "/usr/local/lib/python3.9/site-packages/django/utils/asyncio.py", line 26, in inner
+    return func(*args, **kwargs)
+  File "/usr/local/lib/python3.9/site-packages/django/db/backends/base/base.py", line 269, in connect
+    self.connection = self.get_new_connection(conn_params)
+  File "/usr/local/lib/python3.9/site-packages/django/utils/asyncio.py", line 26, in inner
+    return func(*args, **kwargs)
+  File "/usr/local/lib/python3.9/site-packages/django/db/backends/mysql/base.py", line 247, in get_new_connection
+    connection = Database.connect(**conn_params)
+  File "/usr/local/lib64/python3.9/site-packages/MySQLdb/__init__.py", line 121, in Connect
+    return Connection(*args, **kwargs)
+  File "/usr/local/lib64/python3.9/site-packages/MySQLdb/connections.py", line 200, in __init__
+    super().__init__(*args, **kwargs2)
+django.db.utils.OperationalError: (2002, "Can't connect to local server through socket '/var/lib/mysql/mysql.sock' (2)")
+ERROR 2026-02-10 14:29:24,809 basehttp "GET /api/exams/ HTTP/1.1" 500 267919
+ERROR 2026-02-10 14:29:24,910 log Internal Server Error: /api/statistics/
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.9/site-packages/django/db/backends/base/base.py", line 288, in ensure_connection
+    self.connect()
+  File "/usr/local/lib/python3.9/site-packages/django/utils/asyncio.py", line 26, in inner
+    return func(*args, **kwargs)
+  File "/usr/local/lib/python3.9/site-packages/django/db/backends/base/base.py", line 269, in connect
+    self.connection = self.get_new_connection(conn_params)
+  File "/usr/local/lib/python3.9/site-packages/django/utils/asyncio.py", line 26, in inner
+    return func(*args, **kwargs)
+  File "/usr/local/lib/python3.9/site-packages/django/db/backends/mysql/base.py", line 247, in get_new_connection
+    connection = Database.connect(**conn_params)
+  File "/usr/local/lib64/python3.9/site-packages/MySQLdb/__init__.py", line 121, in Connect
+    return Connection(*args, **kwargs)
+  File "/usr/local/lib64/python3.9/site-packages/MySQLdb/connections.py", line 200, in __init__
+    super().__init__(*args, **kwargs2)
+MySQLdb.OperationalError: (2002, "Can't connect to local server through socket '/var/lib/mysql/mysql.sock' (2)")
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.9/site-packages/django/core/handlers/exception.py", line 55, in inner
+    response = get_response(request)
+  File "/usr/local/lib/python3.9/site-packages/django/core/handlers/base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+  File "/usr/local/lib/python3.9/site-packages/django/views/decorators/csrf.py", line 56, in wrapper_view
+    return view_func(*args, **kwargs)
+  File "/usr/local/lib/python3.9/site-packages/django/views/generic/base.py", line 105, in view
+    return self.dispatch(request, *args, **kwargs)
+  File "/usr/local/lib/python3.9/site-packages/rest_framework/views.py", line 515, in dispatch
+    response = self.handle_exception(exc)
+  File "/usr/local/lib/python3.9/site-packages/rest_framework/views.py", line 475, in handle_exception
+    self.raise_uncaught_exception(exc)
+  File "/usr/local/lib/python3.9/site-packages/rest_framework/views.py", line 486, in raise_uncaught_exception
+    raise exc
+  File "/usr/local/lib/python3.9/site-packages/rest_framework/views.py", line 503, in dispatch
+    self.initial(request, *args, **kwargs)
+  File "/usr/local/lib/python3.9/site-packages/rest_framework/views.py", line 420, in initial
+    self.perform_authentication(request)
+  File "/usr/local/lib/python3.9/site-packages/rest_framework/views.py", line 330, in perform_authentication
+    request.user
+  File "/usr/local/lib/python3.9/site-packages/rest_framework/request.py", line 232, in user
+    self._authenticate()
+  File "/usr/local/lib/python3.9/site-packages/rest_framework/request.py", line 385, in _authenticate
+    user_auth_tuple = authenticator.authenticate(self)
+  File "/usr/local/lib/python3.9/site-packages/rest_framework_simplejwt/authentication.py", line 51, in authenticate
+    return self.get_user(validated_token), validated_token
+  File "/usr/local/lib/python3.9/site-packages/rest_framework_simplejwt/authentication.py", line 132, in get_user
+    user = self.user_model.objects.get(**{api_settings.USER_ID_FIELD: user_id})
+  File "/usr/local/lib/python3.9/site-packages/django/db/models/manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+  File "/usr/local/lib/python3.9/site-packages/django/db/models/query.py", line 635, in get
+    num = len(clone)
+  File "/usr/local/lib/python3.9/site-packages/django/db/models/query.py", line 382, in __len__
+    self._fetch_all()
+  File "/usr/local/lib/python3.9/site-packages/django/db/models/query.py", line 1886, in _fetch_all
+    self._result_cache = list(self._iterable_class(self))
+  File "/usr/local/lib/python3.9/site-packages/django/db/models/query.py", line 93, in __iter__
+    results = compiler.execute_sql(
+  File "/usr/local/lib/python3.9/site-packages/django/db/models/sql/compiler.py", line 1560, in execute_sql
+    cursor = self.connection.cursor()
+  File "/usr/local/lib/python3.9/site-packages/django/utils/asyncio.py", line 26, in inner
+    return func(*args, **kwargs)
+  File "/usr/local/lib/python3.9/site-packages/django/db/backends/base/base.py", line 329, in cursor
+    return self._cursor()
+  File "/usr/local/lib/python3.9/site-packages/django/db/backends/base/base.py", line 305, in _cursor
+    self.ensure_connection()
+  File "/usr/local/lib/python3.9/site-packages/django/utils/asyncio.py", line 26, in inner
+    return func(*args, **kwargs)
+  File "/usr/local/lib/python3.9/site-packages/django/db/backends/base/base.py", line 288, in ensure_connection
+    self.connect()
+  File "/usr/local/lib/python3.9/site-packages/django/db/utils.py", line 91, in __exit__
+    raise dj_exc_value.with_traceback(traceback) from exc_value
+  File "/usr/local/lib/python3.9/site-packages/django/db/backends/base/base.py", line 288, in ensure_connection
+    self.connect()
+  File "/usr/local/lib/python3.9/site-packages/django/utils/asyncio.py", line 26, in inner
+    return func(*args, **kwargs)
+  File "/usr/local/lib/python3.9/site-packages/django/db/backends/base/base.py", line 269, in connect
+    self.connection = self.get_new_connection(conn_params)
+  File "/usr/local/lib/python3.9/site-packages/django/utils/asyncio.py", line 26, in inner
+    return func(*args, **kwargs)
+  File "/usr/local/lib/python3.9/site-packages/django/db/backends/mysql/base.py", line 247, in get_new_connection
+    connection = Database.connect(**conn_params)
+  File "/usr/local/lib64/python3.9/site-packages/MySQLdb/__init__.py", line 121, in Connect
+    return Connection(*args, **kwargs)
+  File "/usr/local/lib64/python3.9/site-packages/MySQLdb/connections.py", line 200, in __init__
+    super().__init__(*args, **kwargs2)
+django.db.utils.OperationalError: (2002, "Can't connect to local server through socket '/var/lib/mysql/mysql.sock' (2)")
+ERROR 2026-02-10 14:29:25,063 log Internal Server Error: /api/exams/
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.9/site-packages/django/db/backends/base/base.py", line 288, in ensure_connection
+    self.connect()
+  File "/usr/local/lib/python3.9/site-packages/django/utils/asyncio.py", line 26, in inner
+    return func(*args, **kwargs)
+  File "/usr/local/lib/python3.9/site-packages/django/db/backends/base/base.py", line 269, in connect
+    self.connection = self.get_new_connection(conn_params)
+  File "/usr/local/lib/python3.9/site-packages/django/utils/asyncio.py", line 26, in inner
+    return func(*args, **kwargs)
+  File "/usr/local/lib/python3.9/site-packages/django/db/backends/mysql/base.py", line 247, in get_new_connection
+    connection = Database.connect(**conn_params)
+  File "/usr/local/lib64/python3.9/site-packages/MySQLdb/__init__.py", line 121, in Connect
+    return Connection(*args, **kwargs)
+  File "/usr/local/lib64/python3.9/site-packages/MySQLdb/connections.py", line 200, in __init__
+    super().__init__(*args, **kwargs2)
+MySQLdb.OperationalError: (2002, "Can't connect to local server through socket '/var/lib/mysql/mysql.sock' (2)")
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.9/site-packages/django/core/handlers/exception.py", line 55, in inner
+    response = get_response(request)
+  File "/usr/local/lib/python3.9/site-packages/django/core/handlers/base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+  File "/usr/local/lib/python3.9/site-packages/django/views/decorators/csrf.py", line 56, in wrapper_view
+    return view_func(*args, **kwargs)
+  File "/usr/local/lib/python3.9/site-packages/django/views/generic/base.py", line 105, in view
+    return self.dispatch(request, *args, **kwargs)
+  File "/usr/local/lib/python3.9/site-packages/rest_framework/views.py", line 515, in dispatch
+    response = self.handle_exception(exc)
+  File "/usr/local/lib/python3.9/site-packages/rest_framework/views.py", line 475, in handle_exception
+    self.raise_uncaught_exception(exc)
+  File "/usr/local/lib/python3.9/site-packages/rest_framework/views.py", line 486, in raise_uncaught_exception
+    raise exc
+  File "/usr/local/lib/python3.9/site-packages/rest_framework/views.py", line 503, in dispatch
+    self.initial(request, *args, **kwargs)
+  File "/usr/local/lib/python3.9/site-packages/rest_framework/views.py", line 420, in initial
+    self.perform_authentication(request)
+  File "/usr/local/lib/python3.9/site-packages/rest_framework/views.py", line 330, in perform_authentication
+    request.user
+  File "/usr/local/lib/python3.9/site-packages/rest_framework/request.py", line 232, in user
+    self._authenticate()
+  File "/usr/local/lib/python3.9/site-packages/rest_framework/request.py", line 385, in _authenticate
+    user_auth_tuple = authenticator.authenticate(self)
+  File "/usr/local/lib/python3.9/site-packages/rest_framework_simplejwt/authentication.py", line 51, in authenticate
+    return self.get_user(validated_token), validated_token
+  File "/usr/local/lib/python3.9/site-packages/rest_framework_simplejwt/authentication.py", line 132, in get_user
+    user = self.user_model.objects.get(**{api_settings.USER_ID_FIELD: user_id})
+  File "/usr/local/lib/python3.9/site-packages/django/db/models/manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+  File "/usr/local/lib/python3.9/site-packages/django/db/models/query.py", line 635, in get
+    num = len(clone)
+  File "/usr/local/lib/python3.9/site-packages/django/db/models/query.py", line 382, in __len__
+    self._fetch_all()
+  File "/usr/local/lib/python3.9/site-packages/django/db/models/query.py", line 1886, in _fetch_all
+    self._result_cache = list(self._iterable_class(self))
+  File "/usr/local/lib/python3.9/site-packages/django/db/models/query.py", line 93, in __iter__
+    results = compiler.execute_sql(
+  File "/usr/local/lib/python3.9/site-packages/django/db/models/sql/compiler.py", line 1560, in execute_sql
+    cursor = self.connection.cursor()
+  File "/usr/local/lib/python3.9/site-packages/django/utils/asyncio.py", line 26, in inner
+    return func(*args, **kwargs)
+  File "/usr/local/lib/python3.9/site-packages/django/db/backends/base/base.py", line 329, in cursor
+    return self._cursor()
+  File "/usr/local/lib/python3.9/site-packages/django/db/backends/base/base.py", line 305, in _cursor
+    self.ensure_connection()
+  File "/usr/local/lib/python3.9/site-packages/django/utils/asyncio.py", line 26, in inner
+    return func(*args, **kwargs)
+  File "/usr/local/lib/python3.9/site-packages/django/db/backends/base/base.py", line 288, in ensure_connection
+    self.connect()
+  File "/usr/local/lib/python3.9/site-packages/django/db/utils.py", line 91, in __exit__
+    raise dj_exc_value.with_traceback(traceback) from exc_value
+  File "/usr/local/lib/python3.9/site-packages/django/db/backends/base/base.py", line 288, in ensure_connection
+    self.connect()
+  File "/usr/local/lib/python3.9/site-packages/django/utils/asyncio.py", line 26, in inner
+    return func(*args, **kwargs)
+  File "/usr/local/lib/python3.9/site-packages/django/db/backends/base/base.py", line 269, in connect
+    self.connection = self.get_new_connection(conn_params)
+  File "/usr/local/lib/python3.9/site-packages/django/utils/asyncio.py", line 26, in inner
+    return func(*args, **kwargs)
+  File "/usr/local/lib/python3.9/site-packages/django/db/backends/mysql/base.py", line 247, in get_new_connection
+    connection = Database.connect(**conn_params)
+  File "/usr/local/lib64/python3.9/site-packages/MySQLdb/__init__.py", line 121, in Connect
+    return Connection(*args, **kwargs)
+  File "/usr/local/lib64/python3.9/site-packages/MySQLdb/connections.py", line 200, in __init__
+    super().__init__(*args, **kwargs2)
+django.db.utils.OperationalError: (2002, "Can't connect to local server through socket '/var/lib/mysql/mysql.sock' (2)")
+ERROR 2026-02-10 14:29:25,155 log Internal Server Error: /api/statistics/
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.9/site-packages/django/db/backends/base/base.py", line 288, in ensure_connection
+    self.connect()
+  File "/usr/local/lib/python3.9/site-packages/django/utils/asyncio.py", line 26, in inner
+    return func(*args, **kwargs)
+  File "/usr/local/lib/python3.9/site-packages/django/db/backends/base/base.py", line 269, in connect
+    self.connection = self.get_new_connection(conn_params)
+  File "/usr/local/lib/python3.9/site-packages/django/utils/asyncio.py", line 26, in inner
+    return func(*args, **kwargs)
+  File "/usr/local/lib/python3.9/site-packages/django/db/backends/mysql/base.py", line 247, in get_new_connection
+    connection = Database.connect(**conn_params)
+  File "/usr/local/lib64/python3.9/site-packages/MySQLdb/__init__.py", line 121, in Connect
+    return Connection(*args, **kwargs)
+  File "/usr/local/lib64/python3.9/site-packages/MySQLdb/connections.py", line 200, in __init__
+    super().__init__(*args, **kwargs2)
+MySQLdb.OperationalError: (2002, "Can't connect to local server through socket '/var/lib/mysql/mysql.sock' (2)")
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.9/site-packages/django/core/handlers/exception.py", line 55, in inner
+    response = get_response(request)
+  File "/usr/local/lib/python3.9/site-packages/django/core/handlers/base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+  File "/usr/local/lib/python3.9/site-packages/django/views/decorators/csrf.py", line 56, in wrapper_view
+    return view_func(*args, **kwargs)
+  File "/usr/local/lib/python3.9/site-packages/django/views/generic/base.py", line 105, in view
+    return self.dispatch(request, *args, **kwargs)
+  File "/usr/local/lib/python3.9/site-packages/rest_framework/views.py", line 515, in dispatch
+    response = self.handle_exception(exc)
+  File "/usr/local/lib/python3.9/site-packages/rest_framework/views.py", line 475, in handle_exception
+    self.raise_uncaught_exception(exc)
+  File "/usr/local/lib/python3.9/site-packages/rest_framework/views.py", line 486, in raise_uncaught_exception
+    raise exc
+  File "/usr/local/lib/python3.9/site-packages/rest_framework/views.py", line 503, in dispatch
+    self.initial(request, *args, **kwargs)
+  File "/usr/local/lib/python3.9/site-packages/rest_framework/views.py", line 420, in initial
+    self.perform_authentication(request)
+  File "/usr/local/lib/python3.9/site-packages/rest_framework/views.py", line 330, in perform_authentication
+    request.user
+  File "/usr/local/lib/python3.9/site-packages/rest_framework/request.py", line 232, in user
+    self._authenticate()
+  File "/usr/local/lib/python3.9/site-packages/rest_framework/request.py", line 385, in _authenticate
+    user_auth_tuple = authenticator.authenticate(self)
+  File "/usr/local/lib/python3.9/site-packages/rest_framework_simplejwt/authentication.py", line 51, in authenticate
+    return self.get_user(validated_token), validated_token
+  File "/usr/local/lib/python3.9/site-packages/rest_framework_simplejwt/authentication.py", line 132, in get_user
+    user = self.user_model.objects.get(**{api_settings.USER_ID_FIELD: user_id})
+  File "/usr/local/lib/python3.9/site-packages/django/db/models/manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+  File "/usr/local/lib/python3.9/site-packages/django/db/models/query.py", line 635, in get
+    num = len(clone)
+  File "/usr/local/lib/python3.9/site-packages/django/db/models/query.py", line 382, in __len__
+    self._fetch_all()
+  File "/usr/local/lib/python3.9/site-packages/django/db/models/query.py", line 1886, in _fetch_all
+    self._result_cache = list(self._iterable_class(self))
+  File "/usr/local/lib/python3.9/site-packages/django/db/models/query.py", line 93, in __iter__
+    results = compiler.execute_sql(
+  File "/usr/local/lib/python3.9/site-packages/django/db/models/sql/compiler.py", line 1560, in execute_sql
+    cursor = self.connection.cursor()
+  File "/usr/local/lib/python3.9/site-packages/django/utils/asyncio.py", line 26, in inner
+    return func(*args, **kwargs)
+  File "/usr/local/lib/python3.9/site-packages/django/db/backends/base/base.py", line 329, in cursor
+    return self._cursor()
+  File "/usr/local/lib/python3.9/site-packages/django/db/backends/base/base.py", line 305, in _cursor
+    self.ensure_connection()
+  File "/usr/local/lib/python3.9/site-packages/django/utils/asyncio.py", line 26, in inner
+    return func(*args, **kwargs)
+  File "/usr/local/lib/python3.9/site-packages/django/db/backends/base/base.py", line 288, in ensure_connection
+    self.connect()
+  File "/usr/local/lib/python3.9/site-packages/django/db/utils.py", line 91, in __exit__
+    raise dj_exc_value.with_traceback(traceback) from exc_value
+  File "/usr/local/lib/python3.9/site-packages/django/db/backends/base/base.py", line 288, in ensure_connection
+    self.connect()
+  File "/usr/local/lib/python3.9/site-packages/django/utils/asyncio.py", line 26, in inner
+    return func(*args, **kwargs)
+  File "/usr/local/lib/python3.9/site-packages/django/db/backends/base/base.py", line 269, in connect
+    self.connection = self.get_new_connection(conn_params)
+  File "/usr/local/lib/python3.9/site-packages/django/utils/asyncio.py", line 26, in inner
+    return func(*args, **kwargs)
+  File "/usr/local/lib/python3.9/site-packages/django/db/backends/mysql/base.py", line 247, in get_new_connection
+    connection = Database.connect(**conn_params)
+  File "/usr/local/lib64/python3.9/site-packages/MySQLdb/__init__.py", line 121, in Connect
+    return Connection(*args, **kwargs)
+  File "/usr/local/lib64/python3.9/site-packages/MySQLdb/connections.py", line 200, in __init__
+    super().__init__(*args, **kwargs2)
+django.db.utils.OperationalError: (2002, "Can't connect to local server through socket '/var/lib/mysql/mysql.sock' (2)")
+ERROR 2026-02-10 14:29:25,207 basehttp "GET /api/statistics/? HTTP/1.1" 500 268015
+ERROR 2026-02-10 14:29:25,363 basehttp "GET /api/exams/ HTTP/1.1" 500 267919
+ERROR 2026-02-10 14:29:25,463 basehttp "GET /api/statistics/? HTTP/1.1" 500 268015
