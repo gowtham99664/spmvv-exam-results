@@ -398,20 +398,6 @@ def upload_results(request):
                 subjects_data = row.get('subjects', [])
                 sgpa = calculate_sgpa(subjects_data)
                 total_marks = calculate_total_marks(subjects_data)
-
-                # Check if any subject has F grade
-                has_fail_grade = any(
-                    subject.get("Grade", "").strip().upper() == "F"
-                    for subject in subjects_data
-                )
-
-                # Determine overall result: Fail if any F grade OR SGPA < 6.0
-                if has_fail_grade:
-                    overall_result = "Fail"
-                elif sgpa and sgpa >= 6.0:
-                    overall_result = "Pass"
-                else:
-                    overall_result = "Fail"
                 
                 result, created = Result.objects.update_or_create(
                     roll_number=roll_number,
@@ -425,7 +411,7 @@ def upload_results(request):
                         'exam_held_date': exam_date_obj,
                         'course': course_lower,
                         'branch': student_branch,  # Branch from Excel
-                        'overall_result': overall_result,
+                        'overall_result': 'Pass' if sgpa and sgpa >= 6.0 else 'Fail',  # Auto-calculate based on SGPA
                         'overall_grade': '',  # Not used in new format
                         'total_marks': total_marks,
                         'sgpa': sgpa,
@@ -460,26 +446,25 @@ def upload_results(request):
                         attempts=1  # Each exam is independent, attempts=1
                     )
                 
-                # Re-validate overall_result based on saved subject grades
-                # Check if any subject has F grade (failing grade)
+                # Calculate overall_result based on actual subject grades
+                # This ensures data integrity regardless of Excel input
                 all_subjects = result.subjects.all()
                 if all_subjects.count() > 0:
-                    has_f_grade = all_subjects.filter(
-                        grade__iexact="F"
-                    ).exists()
+                    # Check if any subject has failing grade (not in passing grades)
+                    failed_subjects = all_subjects.exclude(
+                        grade__in=['A', 'A+', 'B', 'B+', 'C', 'D', 'E']
+                    ).count()
                     
-                    # Update overall_result: Fail if any F grade OR SGPA < 6.0
-                    if has_f_grade:
-                        result.overall_result = "Fail"
-                    elif result.sgpa and result.sgpa >= 6.0:
-                        result.overall_result = "Pass"
+                    # Update overall_result based on subjects
+                    if failed_subjects > 0:
+                        result.overall_result = 'Fail'
                     else:
-                        result.overall_result = "Fail"
+                        result.overall_result = 'Pass'
                     result.save()
 
                 # Update completion date if all subjects passed
                 all_subjects = result.subjects.all()
-                pending_count = all_subjects.filter(grade__iexact='F').count()
+                pending_count = all_subjects.filter(subject_result='fail').count()
                 if pending_count == 0 and all_subjects.count() > 0:
                     from datetime import date
                     result.completion_date = date.today()
@@ -768,7 +753,7 @@ def download_exam_results(request, exam_name):
             row_data.extend([
                 subject.subject_code, subject.subject_name,
                 subject.internal_marks, subject.external_marks,
-                subject.total_marks, subject.grade
+                subject.total_marks, subject.subject_result, subject.grade
             ])
         
         # Add overall result (only once per student)
@@ -978,9 +963,7 @@ def get_statistics(request):
             for subject in subjects:
                 code = subject.subject_code
                 result_type = subject.result.result_type
-                # Determine pass/fail based on grade (F = fail, others = pass)
-                subject_grade = subject.grade.upper() if subject.grade else ""
-                subject_result = "fail" if subject_grade == "F" else "pass"
+                subject_result = subject.subject_result.lower()
                 
                 subject_analysis[code]['code'] = code
                 subject_analysis[code]['name'] = subject.subject_name
@@ -1060,145 +1043,45 @@ def download_sample_template(request):
         return Response({"error": "Admin only"}, status=403)
     try:
         import openpyxl
-        from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+        from openpyxl.styles import Font, PatternFill, Alignment
         
         wb = openpyxl.Workbook()
         ws = wb.active
         ws.title = "Results Template"
         
-        # Headers with Credits and SGPA format (5 subjects)
+        # New column order: Branch, Result Type, Roll Number, Student Name, Subjects..., Overall Result, Percentage, Overall Grade
         headers = [
             "Branch", "Result Type", "Roll Number", "Student Name",
-            "Subject 1 Code", "Subject 1 Name", "Subject 1 Credits", "Subject 1 Internal", "Subject 1 External", 
-            "Subject 1 Total", "Subject 1 Grade",
-            "Subject 2 Code", "Subject 2 Name", "Subject 2 Credits", "Subject 2 Internal", "Subject 2 External",
-            "Subject 2 Total", "Subject 2 Grade",
-            "Subject 3 Code", "Subject 3 Name", "Subject 3 Credits", "Subject 3 Internal", "Subject 3 External",
-            "Subject 3 Total", "Subject 3 Grade",
-            "Subject 4 Code", "Subject 4 Name", "Subject 4 Credits", "Subject 4 Internal", "Subject 4 External",
-            "Subject 4 Total", "Subject 4 Grade",
-            "Subject 5 Code", "Subject 5 Name", "Subject 5 Credits", "Subject 5 Internal", "Subject 5 External",
-            "Subject 5 Total", "Subject 5 Grade",
-            "Total Marks", "SGPA"
+            "Subject 1 Code", "Subject 1 Name", "Subject 1 Internal", "Subject 1 External", 
+            "Subject 1 Total", "Subject 1 Result", "Subject 1 Grade",
+            "Subject 2 Code", "Subject 2 Name", "Subject 2 Internal", "Subject 2 External",
+            "Subject 2 Total", "Subject 2 Result", "Subject 2 Grade",
+            "Subject 3 Code", "Subject 3 Name", "Subject 3 Internal", "Subject 3 External",
+            "Subject 3 Total", "Subject 3 Result", "Subject 3 Grade",
+            "Overall Result", "Percentage", "Overall Grade"
         ]
-        
-        # Style header row
-        header_fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
-        header_font = Font(bold=True, color="FFFFFF", size=11)
-        border = Border(left=Side(style="thin"), right=Side(style="thin"), top=Side(style="thin"), bottom=Side(style="thin"))
         
         for col_num, header in enumerate(headers, start=1):
             cell = ws.cell(row=1, column=col_num, value=header)
-            cell.font = header_font
-            cell.fill = header_fill
-            cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
-            cell.border = border
-            ws.column_dimensions[cell.column_letter].width = 15
+            cell.font = Font(bold=True)
         
         # Sample data
-        sample = [
-            "CSE", "Regular", "2021001", "Sample Student", 
-            "CS101", "Data Structures", 4, 18, 65, 83, "A",
-            "CS102", "Algorithms", 4, 20, 70, 90, "O",
-            "CS103", "Databases", 3, 15, 50, 65, "B",
-            "CS104", "Operating Systems", 4, 19, 68, 87, "A",
-            "CS105", "Computer Networks", 3, 17, 62, 79, "A",
-            404, 8.17
-        ]
+        sample = ["CSE", "Regular", "2021001", "Sample Student", 
+                  "CS101", "Data Structures", "18", "65", "83", "Pass", "A",
+                  "CS102", "Algorithms", "20", "70", "90", "Pass", "O",
+                  "CS103", "Databases", "15", "50", "65", "Pass", "B",
+                  "Pass", "79.33", "A"]
         
         for col_num, value in enumerate(sample, start=1):
-            cell = ws.cell(row=2, column=col_num, value=value)
-            cell.alignment = Alignment(horizontal="center", vertical="center")
-            cell.border = border
-        
-        # Instructions sheet
-        instructions_ws = wb.create_sheet("Instructions")
-        instructions = [
-            ["SPMVV Exam Results Upload Template - Instructions"],
-            [""],
-            ["IMPORTANT: This template uses Credits-based SGPA system"],
-            [""],
-            ["Column Descriptions:"],
-            [""],
-            ["1. Branch", "Student branch/department (e.g., CSE, ECE, IT)"],
-            ["2. Result Type", "Type of exam: Regular / Supplementary"],
-            ["3. Roll Number", "Student roll number (must be unique)"],
-            ["4. Student Name", "Full name of the student"],
-            [""],
-            ["For each subject (up to 5 subjects):"],
-            ["  - Subject Code", "Subject code (e.g., CS101)"],
-            ["  - Subject Name", "Full subject name"],
-            ["  - Subject Credits", "Number of credits (e.g., 3, 4)"],
-            ["  - Subject Internal", "Internal marks obtained"],
-            ["  - Subject External", "External marks obtained"],
-            ["  - Subject Total", "Total marks (Internal + External)"],
-            ["  - Subject Grade", "Grade: O, A, B, C, D, or F"],
-            [""],
-            ["Last two columns:"],
-            ["  - Total Marks", "Sum of all subject total marks"],
-            ["  - SGPA", "Semester Grade Point Average (auto-calculated)"],
-            [""],
-            ["Grade Point System:"],
-            ["  O = 10 points"],
-            ["  A = 9 points"],
-            ["  B = 8 points"],
-            ["  C = 7 points"],
-            ["  D = 6 points"],
-            ["  F = 0 points (Fail)"],
-            [""],
-            ["SGPA Calculation:"],
-            ["  SGPA = (Grade1 x Credits1 + Grade2 x Credits2 + ...) / Total Credits"],
-            ["  Example: Subject1(A grade, 4 credits) + Subject2(B grade, 3 credits)"],
-            ["           SGPA = (9x4 + 8x3) / (4+3) = (36+24)/7 = 8.57"],
-            [""],
-            ["Pass Criteria:"],
-            ["  Student PASSES if:"],
-            ["    1. No F grade in any subject, AND"],
-            ["    2. SGPA >= 6.0"],
-            [""],
-            ["  Student FAILS if:"],
-            ["    1. F grade in one or more subjects, OR"],
-            ["    2. SGPA < 6.0"],
-            [""],
-            ["Notes:"],
-            ["  - You can add more subjects by repeating the subject columns pattern"],
-            ["  - All fields are required except Total Marks and SGPA (auto-calculated)"],
-            ["  - Credits should be positive integers (typically 3 or 4)"],
-            ["  - Grades must be valid: O, A, B, C, D, F (case-insensitive)"],
-            ["  - Internal and External marks should match your marking scheme"],
-        ]
-        
-        # Style instructions
-        title_font = Font(bold=True, size=14, color="FFFFFF")
-        title_fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
-        header_font_inst = Font(bold=True, size=11)
-        
-        for row_num, instruction in enumerate(instructions, start=1):
-            if row_num == 1:
-                cell = instructions_ws.cell(row=row_num, column=1, value=instruction[0])
-                cell.font = title_font
-                cell.fill = title_fill
-                cell.alignment = Alignment(horizontal="center", vertical="center")
-                instructions_ws.merge_cells(f"A{row_num}:B{row_num}")
-            elif len(instruction) == 2:
-                cell1 = instructions_ws.cell(row=row_num, column=1, value=instruction[0])
-                cell2 = instructions_ws.cell(row=row_num, column=2, value=instruction[1])
-                if ":" not in instruction[0] and instruction[0] and not instruction[0].startswith(" "):
-                    cell1.font = header_font_inst
-            else:
-                cell = instructions_ws.cell(row=row_num, column=1, value=instruction[0])
-                if any(kw in instruction[0] for kw in ["Column", "Grade Point", "SGPA Calc", "Pass Crit", "Notes"]):
-                    cell.font = header_font_inst
-        
-        instructions_ws.column_dimensions["A"].width = 30
-        instructions_ws.column_dimensions["B"].width = 60
+            ws.cell(row=2, column=col_num, value=value)
         
         response = HttpResponse(content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-        response["Content-Disposition"] = "attachment; filename=SPMVV_Results_Template_Credits_SGPA.xlsx"
+        response["Content-Disposition"] = "attachment; filename=SPMVV_Results_Template.xlsx"
         wb.save(response)
         return response
     except Exception as e:
         return Response({"error": str(e)}, status=500)
+
 
 
 @api_view(["GET"])

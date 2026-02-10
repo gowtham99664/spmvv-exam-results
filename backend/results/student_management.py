@@ -69,18 +69,13 @@ def get_student_history(request, roll_number):
         for result in results:
             subjects = result.subjects.all()
             total_subjects = subjects.count()
-            total_marks = 0
-            max_marks = 0
             pending_subjects = 0
             
+            # Count F grades as pending subjects
             for subject in subjects:
-                if subject.total_marks:
-                    total_marks += subject.total_marks
-                    max_marks += 100
-                if subject.subject_result.lower() == 'fail':
+                if subject.grade and subject.grade.upper() == 'F':
                     pending_subjects += 1
             
-            percentage = round((total_marks / max_marks * 100), 2) if max_marks > 0 else 0
             overall_result = result.overall_result if result.overall_result else ('Pass' if pending_subjects == 0 else 'Fail')
             key = (result.year, result.semester)
             num_attempts = exam_counts[key]
@@ -92,9 +87,9 @@ def get_student_history(request, roll_number):
                 'result_id': result.id,
                 'exam_name': result.exam_name,
                 'result_type': result.get_result_type_display(),
-                'total_marks_percentage': percentage,
+                'total_marks': result.total_marks,
+                'sgpa': float(result.sgpa) if result.sgpa else None,
                 'overall_result': overall_result,
-                'overall_grade': result.overall_grade,
                 'total_subjects': total_subjects,
                 'pending_subjects': pending_subjects,
                 'num_attempts': num_attempts,
@@ -127,12 +122,9 @@ def get_semester_subjects(request, result_id):
                 "id": subject.id,
                 "subject_code": subject.subject_code,
                 "subject_name": subject.subject_name,
-                "internal_marks": subject.internal_marks,
-                "external_marks": subject.external_marks,
+                "credits": subject.credits,
                 "total_marks": subject.total_marks,
-                "subject_result": subject.get_subject_result_display(),
-                "grade": subject.grade,
-                "attempts": subject.attempts
+                "grade": subject.grade
             })
         
         semester_info = {
@@ -143,7 +135,8 @@ def get_semester_subjects(request, result_id):
             "exam_name": result.exam_name,
             "result_type": result.get_result_type_display(),
             "overall_result": result.overall_result,
-            "overall_grade": result.overall_grade
+            "total_marks": result.total_marks,
+            "sgpa": float(result.sgpa) if result.sgpa else None
         }
         return Response({"semester_info": semester_info, "subjects": subject_details})
     except Result.DoesNotExist:

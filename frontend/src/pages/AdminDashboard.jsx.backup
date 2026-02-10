@@ -30,8 +30,6 @@ const AdminDashboard = () => {
   const [statistics, setStatistics] = useState(null);
   const [showStatsModal, setShowStatsModal] = useState(false);
   const [examHeldDate, setExamHeldDate] = useState('');
-  const [examMonth, setExamMonth] = useState('');
-  const [examYear, setExamYear] = useState('');
   
   // Student management state
   const [selectedStudent, setSelectedStudent] = useState(null);
@@ -151,9 +149,8 @@ const AdminDashboard = () => {
     }
     
     // Validate exam held date if provided
-    let examDate = '';
-    if (examMonth && examYear) {
-      const selectedDate = new Date(examYear, parseInt(examMonth) - 1, 1);
+    if (examHeldDate) {
+      const selectedDate = new Date(examHeldDate + '-01'); // Add day for comparison
       const currentDate = new Date();
       currentDate.setHours(0, 0, 0, 0);
       
@@ -161,16 +158,11 @@ const AdminDashboard = () => {
         setUploadMessage({ type: 'error', text: 'Exam Held Date cannot be in the future' });
         return;
       }
-      
-      // Format as YYYY-MM
-      examDate = `${examYear}-${examMonth.padStart(2, '0')}`;
-    } else if (examMonth || examYear) {
-      setUploadMessage({ type: 'error', text: 'Please provide both month and year or leave both empty' });
-      return;
     }
     
     setUploadLoading(true);
     try {
+      const examDate = examHeldDate || "";
       const result = await resultsService.uploadResults(file, year, semester, resultType, course, examDate);
       setUploadMessage({ type: 'success', text: result.message || 'Results uploaded successfully' });
       setFile(null);
@@ -179,8 +171,6 @@ const AdminDashboard = () => {
       setResultType('');
       setCourse('btech');
       setExamHeldDate('');
-      setExamMonth('');
-      setExamYear('');
       fetchUploadedExams();
       e.target.reset();
     } catch (err) {
@@ -290,42 +280,16 @@ const AdminDashboard = () => {
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Exam Held Month & Year (Optional)
                 </label>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <select 
-                      value={examMonth}
-                      onChange={(e) => setExamMonth(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
-                    >
-                      <option value="">Select Month</option>
-                      <option value="01">January</option>
-                      <option value="02">February</option>
-                      <option value="03">March</option>
-                      <option value="04">April</option>
-                      <option value="05">May</option>
-                      <option value="06">June</option>
-                      <option value="07">July</option>
-                      <option value="08">August</option>
-                      <option value="09">September</option>
-                      <option value="10">October</option>
-                      <option value="11">November</option>
-                      <option value="12">December</option>
-                    </select>
-                  </div>
-                  <div>
-                    <input 
-                      type="number"
-                      value={examYear}
-                      onChange={(e) => setExamYear(e.target.value)}
-                      placeholder="Enter Year (e.g., 2026)"
-                      min="2000"
-                      max={new Date().getFullYear()}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
-                    />
-                  </div>
-                </div>
+                <input
+                  type="month"
+                  value={examHeldDate}
+                  onChange={(e) => setExamHeldDate(e.target.value)}
+                  max={new Date().toISOString().slice(0, 7)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
+                  placeholder="YYYY-MM"
+                />
                 <p className="text-xs text-gray-500 mt-1">
-                  Select month and enter year for exam name generation. Must be a past or current date.
+                  Enter month and year for exam name generation (e.g., 2026-11 for November 2026). Must be a past or current date.
                 </p>
               </div>
 

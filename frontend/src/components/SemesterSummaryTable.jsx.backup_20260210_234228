@@ -156,6 +156,10 @@ const SemesterSummaryTable = ({ studentInfo, semesterSummary, onRefresh }) => {
                         </td>
                                                 <td className="text-center align-middle py-3">
                           <button className="btn btn-sm btn-primary" style={{ fontWeight: '500' }}>
+                            {isExpanded ? '▲ HIDE' : '▼ VIEW'}
+                          </button>
+                        </td>
+                      </tr>
 
                       {/* Expanded Attempts Section */}
                       {isExpanded && (
@@ -183,6 +187,7 @@ const SemesterSummaryTable = ({ studentInfo, semesterSummary, onRefresh }) => {
                                                                             <th className="text-center align-middle py-3" style={{ fontWeight: '600' }}>TOTAL MARKS</th>
                                       <th className="text-center align-middle py-3" style={{ fontWeight: '600' }}>SGPA</th>
                                       <th className="text-center align-middle py-3" style={{ fontWeight: '600' }}>RESULT</th>
+                                      <th className="text-center align-middle py-3" style={{ fontWeight: '600' }}>GRADE</th>
                                       <th className="text-center align-middle py-3" style={{ fontWeight: '600' }}>PENDING</th>
                                       <th className="text-center align-middle py-3" style={{ fontWeight: '600' }}>DATE</th>
                                       <th className="text-center align-middle py-3" style={{ fontWeight: '600' }}>ACTION</th>
@@ -195,7 +200,7 @@ const SemesterSummaryTable = ({ studentInfo, semesterSummary, onRefresh }) => {
                                           <td className="text-center align-middle py-3">
                                             <span className="badge bg-dark">#{index + 1}</span>
                                           </td>
-                                          <td className="text-center align-middle py-3" style={{ fontWeight: '500', whiteSpace: 'normal', wordWrap: 'break-word', maxWidth: '300px' }}>
+                                          <td className="text-center align-middle py-3" style={{ fontWeight: '500' }}>
                                             {attempt.exam_name}
                                           </td>
                                           <td className="text-center align-middle py-3">
@@ -212,6 +217,9 @@ const SemesterSummaryTable = ({ studentInfo, semesterSummary, onRefresh }) => {
                                             <span className={`badge ${attempt.overall_result === 'Pass' ? 'bg-success' : 'bg-danger'}`}>
                                               {attempt.overall_result}
                                             </span>
+                                          </td>
+                                          <td className="text-center align-middle py-3">
+                                            <strong>{attempt.overall_grade || 'N/A'}</strong>
                                           </td>
                                           <td className="text-center align-middle py-3">
                                             <span className={`badge ${attempt.pending_subjects > 0 ? 'bg-warning text-dark' : 'bg-success'}`}>
@@ -242,7 +250,7 @@ const SemesterSummaryTable = ({ studentInfo, semesterSummary, onRefresh }) => {
                                         {/* Subject Details */}
                                         {expandedExam === attempt.result_id && (
                                           <tr>
-                                            <td colSpan="8" className="p-3" style={{ backgroundColor: '#ffffff' }}>
+                                            <td colSpan="9" className="p-3" style={{ backgroundColor: '#ffffff' }}>
                                               {loading[attempt.result_id] ? (
                                                 <div className="text-center py-3">
                                                   <div className="spinner-border text-primary" role="status">

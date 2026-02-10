@@ -114,7 +114,8 @@ class Result(models.Model):
     branch = models.CharField(max_length=50, choices=BRANCH_CHOICES, default="cse", help_text="Branch/Department")
     overall_result = models.CharField(max_length=50, blank=True)
     overall_grade = models.CharField(max_length=10, blank=True)
-    percentage = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True, help_text='Overall percentage')
+    total_marks = models.IntegerField(null=True, blank=True, help_text='Total marks obtained')
+    sgpa = models.DecimalField(max_digits=4, decimal_places=2, null=True, blank=True, help_text='Semester Grade Point Average')
     completion_date = models.DateField(null=True, blank=True, help_text='Date when student passed all subjects (no pending subjects)')
     uploaded_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='uploaded_results')
     uploaded_at = models.DateTimeField(auto_now_add=True)
@@ -134,19 +135,13 @@ class Result(models.Model):
 
 
 class Subject(models.Model):
-    RESULT_CHOICES = [
-        ('pass', 'Pass'),
-        ('fail', 'Fail'),
-        ('absent', 'Absent'),
-    ]
-    
     result = models.ForeignKey(Result, on_delete=models.CASCADE, related_name='subjects')
     subject_code = models.CharField(max_length=50)
     subject_name = models.CharField(max_length=200)
+    credits = models.IntegerField(null=True, blank=True, help_text='Subject credits')
     internal_marks = models.IntegerField(null=True, blank=True)
     external_marks = models.IntegerField(null=True, blank=True)
     total_marks = models.IntegerField(null=True, blank=True)
-    subject_result = models.CharField(max_length=20, choices=RESULT_CHOICES)
     grade = models.CharField(max_length=10, blank=True)
     attempts = models.IntegerField(default=1, help_text="Number of attempts for this subject")
     

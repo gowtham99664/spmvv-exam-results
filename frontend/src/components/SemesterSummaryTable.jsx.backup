@@ -99,8 +99,7 @@ const SemesterSummaryTable = ({ studentInfo, semesterSummary, onRefresh }) => {
                 <tr>
                   <th className="text-center align-middle py-3" style={{ fontWeight: '600' }}>YEAR</th>
                   <th className="text-center align-middle py-3" style={{ fontWeight: '600' }}>SEMESTER</th>
-                                    <th className="text-center align-middle py-3" style={{ fontWeight: '600' }}>TOTAL MARKS</th>
-                  <th className="text-center align-middle py-3" style={{ fontWeight: '600' }}>SGPA</th>
+                                    <th className="text-center align-middle py-3" style={{ fontWeight: '600' }}>PERCENTAGE</th>
                   <th className="text-center align-middle py-3" style={{ fontWeight: '600' }}>RESULT</th>
                   <th className="text-center align-middle py-3" style={{ fontWeight: '600' }}>PENDING</th>
                                     <th className="text-center align-middle py-3" style={{ fontWeight: '600' }}>ACTION</th>
@@ -133,12 +132,7 @@ const SemesterSummaryTable = ({ studentInfo, semesterSummary, onRefresh }) => {
                         </td>
                                                 <td className="text-center align-middle py-3">
                           <strong style={{ color: '#1976d2' }}>
-                            {latest.total_marks || 'N/A'}
-                          </strong>
-                        </td>
-                        <td className="text-center align-middle py-3">
-                          <strong style={{ color: '#1976d2' }}>
-                            {latest.sgpa ? latest.sgpa.toFixed(2) : 'N/A'}
+                            {latest.total_marks_percentage ? latest.total_marks_percentage.toFixed(2) + '%' : 'N/A'}
                           </strong>
                         </td>
                         <td className="text-center align-middle py-3">
@@ -156,11 +150,15 @@ const SemesterSummaryTable = ({ studentInfo, semesterSummary, onRefresh }) => {
                         </td>
                                                 <td className="text-center align-middle py-3">
                           <button className="btn btn-sm btn-primary" style={{ fontWeight: '500' }}>
+                            {isExpanded ? '▲ HIDE' : '▼ VIEW'}
+                          </button>
+                        </td>
+                      </tr>
 
                       {/* Expanded Attempts Section */}
                       {isExpanded && (
                         <tr>
-                          <td colSpan="7" className="p-0" style={{ backgroundColor: '#f0f4f8' }}>
+                          <td colSpan="6" className="p-0" style={{ backgroundColor: '#f0f4f8' }}>
                             <div className="p-3">
                               <h6 className="mb-3" style={{ 
                                 color: '#1e3c72', 
@@ -180,9 +178,9 @@ const SemesterSummaryTable = ({ studentInfo, semesterSummary, onRefresh }) => {
                                     <tr>
                                       <th className="text-center align-middle py-3" style={{ fontWeight: '600' }}>ATTEMPT</th>
                                       <th className="text-center align-middle py-3" style={{ fontWeight: '600' }}>EXAM NAME</th>
-                                                                            <th className="text-center align-middle py-3" style={{ fontWeight: '600' }}>TOTAL MARKS</th>
-                                      <th className="text-center align-middle py-3" style={{ fontWeight: '600' }}>SGPA</th>
+                                                                            <th className="text-center align-middle py-3" style={{ fontWeight: '600' }}>PERCENTAGE</th>
                                       <th className="text-center align-middle py-3" style={{ fontWeight: '600' }}>RESULT</th>
+                                      <th className="text-center align-middle py-3" style={{ fontWeight: '600' }}>GRADE</th>
                                       <th className="text-center align-middle py-3" style={{ fontWeight: '600' }}>PENDING</th>
                                       <th className="text-center align-middle py-3" style={{ fontWeight: '600' }}>DATE</th>
                                       <th className="text-center align-middle py-3" style={{ fontWeight: '600' }}>ACTION</th>
@@ -195,23 +193,21 @@ const SemesterSummaryTable = ({ studentInfo, semesterSummary, onRefresh }) => {
                                           <td className="text-center align-middle py-3">
                                             <span className="badge bg-dark">#{index + 1}</span>
                                           </td>
-                                          <td className="text-center align-middle py-3" style={{ fontWeight: '500', whiteSpace: 'normal', wordWrap: 'break-word', maxWidth: '300px' }}>
+                                          <td className="text-center align-middle py-3" style={{ fontWeight: '500' }}>
                                             {attempt.exam_name}
                                           </td>
                                           <td className="text-center align-middle py-3">
                                             <strong style={{ color: '#1976d2' }}>
-                                              {attempt.total_marks || 'N/A'}
-                                            </strong>
-                                          </td>
-                                          <td className="text-center align-middle py-3">
-                                            <strong style={{ color: '#1976d2' }}>
-                                              {attempt.sgpa ? attempt.sgpa.toFixed(2) : 'N/A'}
+                                              {attempt.total_marks_percentage ? attempt.total_marks_percentage.toFixed(2) + '%' : 'N/A'}
                                             </strong>
                                           </td>
                                           <td className="text-center align-middle py-3">
                                             <span className={`badge ${attempt.overall_result === 'Pass' ? 'bg-success' : 'bg-danger'}`}>
                                               {attempt.overall_result}
                                             </span>
+                                          </td>
+                                          <td className="text-center align-middle py-3">
+                                            <strong>{attempt.overall_grade || 'N/A'}</strong>
                                           </td>
                                           <td className="text-center align-middle py-3">
                                             <span className={`badge ${attempt.pending_subjects > 0 ? 'bg-warning text-dark' : 'bg-success'}`}>
@@ -268,8 +264,10 @@ const SemesterSummaryTable = ({ studentInfo, semesterSummary, onRefresh }) => {
                                                         <tr>
                                                           <th className="text-center align-middle py-3" style={{ fontWeight: '600' }}>SUBJECT CODE</th>
                                                           <th className="text-center align-middle py-3" style={{ fontWeight: '600' }}>SUBJECT NAME</th>
-                                                          <th className="text-center align-middle py-3" style={{ fontWeight: '600' }}>CREDITS</th>
-                                                          <th className="text-center align-middle py-3" style={{ fontWeight: '600' }}>TOTAL MARKS</th>
+                                                          <th className="text-center align-middle py-3" style={{ fontWeight: '600' }}>INTERNAL</th>
+                                                          <th className="text-center align-middle py-3" style={{ fontWeight: '600' }}>EXTERNAL</th>
+                                                          <th className="text-center align-middle py-3" style={{ fontWeight: '600' }}>TOTAL</th>
+                                                          <th className="text-center align-middle py-3" style={{ fontWeight: '600' }}>RESULT</th>
                                                           <th className="text-center align-middle py-3" style={{ fontWeight: '600' }}>GRADE</th>
                                                                                                                   </tr>
                                                       </thead>
@@ -285,14 +283,23 @@ const SemesterSummaryTable = ({ studentInfo, semesterSummary, onRefresh }) => {
                                                               {subject.subject_name}
                                                             </td>
                                                             <td className="text-center align-middle py-3">
-                                                              <strong style={{ color: '#28a745' }}>
-                                                                {subject.credits ?? '-'}
-                                                              </strong>
+                                                              {subject.internal_marks ?? '-'}
+                                                            </td>
+                                                            <td className="text-center align-middle py-3">
+                                                              {subject.external_marks ?? '-'}
                                                             </td>
                                                             <td className="text-center align-middle py-3">
                                                               <strong style={{ color: '#1976d2' }}>
                                                                 {subject.total_marks ?? '-'}
                                                               </strong>
+                                                            </td>
+                                                            <td className="text-center align-middle py-3">
+                                                              <span className={`badge ${
+                                                                subject.subject_result === 'Pass' ? 'bg-success' :
+                                                                subject.subject_result === 'Fail' ? 'bg-danger' : 'bg-secondary'
+                                                              }`}>
+                                                                {subject.subject_result}
+                                                              </span>
                                                             </td>
                                                             <td className="text-center align-middle py-3">
                                                               <strong>{subject.grade || '-'}</strong>

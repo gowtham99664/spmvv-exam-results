@@ -49,8 +49,8 @@ class PasswordChangeSerializer(serializers.Serializer):
 class SubjectSerializer(serializers.ModelSerializer):
     class Meta:
         model = Subject
-        fields = ['id', 'subject_code', 'subject_name', 'internal_marks', 
-                  'external_marks', 'total_marks', 'subject_result', 'grade', 'attempts']
+        fields = ['id', 'subject_code', 'subject_name', 'credits', 'internal_marks', 
+                  'external_marks', 'total_marks', 'grade', 'attempts']
 
 
 class ResultSerializer(serializers.ModelSerializer):
@@ -60,7 +60,7 @@ class ResultSerializer(serializers.ModelSerializer):
     class Meta:
         model = Result
         fields = ['id', 'roll_number', 'student_name', 'year', 'semester', 'exam_name', 
-                  'result_type', 'result_type_display', 'overall_result', 'overall_grade', 
+                  'result_type', 'result_type_display', 'overall_result', 'total_marks', 'sgpa',
                   'completion_date', 'subjects', 'uploaded_at', 'updated_at']
 
 

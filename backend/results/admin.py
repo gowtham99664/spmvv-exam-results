@@ -22,13 +22,13 @@ class UserAdmin(BaseUserAdmin):
 class SubjectInline(admin.TabularInline):
     model = Subject
     extra = 0
-    fields = ('subject_code', 'subject_name', 'internal_marks', 'external_marks', 'total_marks', 'subject_result', 'grade')
-    readonly_fields = ('subject_code', 'subject_name', 'internal_marks', 'external_marks', 'total_marks', 'subject_result', 'grade')
+    fields = ('subject_code', 'subject_name', 'credits', 'total_marks', 'grade')
+    readonly_fields = ('subject_code', 'subject_name', 'credits', 'total_marks', 'grade')
 
 
 @admin.register(Result)
 class ResultAdmin(admin.ModelAdmin):
-    list_display = ('roll_number', 'student_name', 'semester', 'result_type', 'overall_result', 'overall_grade', 'uploaded_by', 'uploaded_at')
+    list_display = ('roll_number', 'student_name', 'semester', 'result_type', 'total_marks', 'sgpa', 'overall_result', 'uploaded_by', 'uploaded_at')
     list_filter = ('semester', 'result_type', 'overall_result', 'uploaded_at')
     search_fields = ('roll_number', 'student_name', 'student__username')
     ordering = ('-uploaded_at',)
@@ -40,7 +40,7 @@ class ResultAdmin(admin.ModelAdmin):
             'fields': ('student', 'roll_number', 'student_name')
         }),
         ('Result Information', {
-            'fields': ('semester', 'result_type', 'overall_result', 'overall_grade')
+            'fields': ('semester', 'result_type', 'total_marks', 'sgpa', 'overall_result')
         }),
         ('Metadata', {
             'fields': ('uploaded_by', 'uploaded_at', 'updated_at')
@@ -55,8 +55,8 @@ class ResultAdmin(admin.ModelAdmin):
 
 @admin.register(Subject)
 class SubjectAdmin(admin.ModelAdmin):
-    list_display = ('subject_code', 'subject_name', 'result', 'internal_marks', 'external_marks', 'total_marks', 'subject_result', 'grade')
-    list_filter = ('subject_result', 'grade')
+    list_display = ('subject_code', 'subject_name', 'result', 'credits', 'total_marks', 'grade')
+    list_filter = ('grade',)
     search_fields = ('subject_code', 'subject_name', 'result__roll_number', 'result__student_name')
     ordering = ('result', 'subject_code')
 

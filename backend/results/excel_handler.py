@@ -178,15 +178,12 @@ class ExcelValidator:
                     # Basic fields
                     elif header in ['Roll Number', 'Student Name']:
                         row_data[header] = value
-                    elif header == 'Overall Result':
-                        # Normalize overall result to proper case
-                        row_data[header] = ExcelValidator.normalize_result(value) if value else ''
-                    elif header == 'Percentage':
-                        # Handle percentage value
+                    elif header == 'Total Marks':
+                        # Handle total marks value
+                        row_data[header] = int(value) if value is not None and value != '' else None
+                    elif header == 'SGPA':
+                        # Handle SGPA value
                         row_data[header] = float(value) if value is not None and value != '' else None
-                    elif header == 'Overall Grade':
-                        # Normalize overall grade to uppercase
-                        row_data[header] = ExcelValidator.normalize_grade(value) if value else ''
                     # Subject fields
                     elif 'Subject' in header:
                         parts = header.split()
@@ -200,12 +197,12 @@ class ExcelValidator:
                                 subject = {'number': subject_num}
                                 subjects.append(subject)
                             
-                            # Normalize Result field for subjects
-                            if field_name == 'Result':
-                                subject[field_name] = ExcelValidator.normalize_result(value)
                             # Normalize Grade field for subjects
-                            elif field_name == 'Grade':
+                            if field_name == 'Grade':
                                 subject[field_name] = ExcelValidator.normalize_grade(value)
+                            # Handle Credits field
+                            elif field_name == 'Credits':
+                                subject[field_name] = int(value) if value is not None and value != '' else None
                             else:
                                 subject[field_name] = value
                 
@@ -227,8 +224,7 @@ class ExcelValidator:
         errors = []
         
         valid_result_types = ['regular', 'supplementary', 'both']
-        valid_subject_results = ['pass', 'fail', 'absent']
-        valid_grades = ['O', 'A+', 'A', 'B+', 'B', 'C', 'D', 'F', 'AB']  # Uppercase for comparison
+        valid_grades = ['O', 'A', 'B', 'C', 'D', 'F']  # Uppercase for comparison, simplified
         valid_branches = ['cse', 'ece', 'eee', 'mech', 'civil', 'it', 'chemical', 'biotechnology', 'mba', 'mca']
         
         for row in data:
@@ -255,15 +251,17 @@ class ExcelValidator:
             if not row.get('Student Name'):
                 errors.append(f"Row {row_num}: Student Name is required")
             
-            # Validate overall result (case-insensitive)
-            overall_result = row.get('Overall Result', '')
-            if overall_result and overall_result.strip().lower() not in ['pass', 'fail']:
-                errors.append(f"Row {row_num}: Overall Result must be 'Pass' or 'Fail' (case-insensitive)")
+            # Validate Total Marks
+            total_marks = row.get('Total Marks', None)
+            if total_marks is not None and not isinstance(total_marks, (int, float)):
+                errors.append(f"Row {row_num}: Total Marks must be a number")
             
-            # Validate overall grade (case-insensitive)
-            overall_grade = row.get('Overall Grade', '')
-            if overall_grade and overall_grade.strip().upper() not in valid_grades:
-                errors.append(f"Row {row_num}: Overall Grade must be one of: {', '.join([g.upper() for g in valid_grades])} (case-insensitive)")
+            # Validate SGPA
+            sgpa = row.get('SGPA', None)
+            if sgpa is not None and not isinstance(sgpa, (int, float)):
+                errors.append(f"Row {row_num}: SGPA must be a number")
+            elif sgpa is not None and (sgpa < 0 or sgpa > 10):
+                errors.append(f"Row {row_num}: SGPA must be between 0 and 10")
             
             # Validate subjects
             subjects = row.get('subjects', [])
@@ -279,16 +277,18 @@ class ExcelValidator:
                 if not subject.get('Name'):
                     errors.append(f"Row {row_num}, Subject {subject_num}: Subject Name is required")
                 
-                # Validate subject result (case-insensitive)
-                subject_result = subject.get('Result', '')
-                if not subject_result:
-                    errors.append(f"Row {row_num}, Subject {subject_num}: Result is required")
-                elif subject_result.strip().lower() not in valid_subject_results:
-                    errors.append(f"Row {row_num}, Subject {subject_num}: Invalid Result. Must be Pass/Fail/Absent (case-insensitive)")
+                # Validate credits
+                credits = subject.get('Credits', None)
+                if credits is None:
+                    errors.append(f"Row {row_num}, Subject {subject_num}: Credits is required")
+                elif not isinstance(credits, int) or credits < 0:
+                    errors.append(f"Row {row_num}, Subject {subject_num}: Credits must be a positive integer")
                 
-                # Validate subject grade if present (case-insensitive)
+                # Validate subject grade (case-insensitive)
                 subject_grade = subject.get('Grade', '')
-                if subject_grade and subject_grade.strip().upper() not in valid_grades:
+                if not subject_grade:
+                    errors.append(f"Row {row_num}, Subject {subject_num}: Grade is required")
+                elif subject_grade.strip().upper() not in valid_grades:
                     errors.append(f"Row {row_num}, Subject {subject_num}: Invalid Grade. Must be one of: {', '.join([g.upper() for g in valid_grades])} (case-insensitive)")
         
         return errors

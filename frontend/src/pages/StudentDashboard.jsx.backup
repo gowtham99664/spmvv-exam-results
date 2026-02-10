@@ -15,7 +15,6 @@ const StudentDashboard = () => {
   const [error, setError] = useState('');
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [notifications, setNotifications] = useState([]);
-  const [unreadCount, setUnreadCount] = useState(0);
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
@@ -31,17 +30,10 @@ const StudentDashboard = () => {
     logout();
     navigate('/login');
   };
+
   useEffect(() => {
     fetchResults();
     fetchNotifications();
-    
-    // Auto-refresh every 60 seconds for new results
-    const interval = setInterval(() => {
-      fetchNotifications();
-      fetchResults();
-    }, 60000);
-    
-    return () => clearInterval(interval);
   }, []);
 
   const fetchResults = async () => {
@@ -59,25 +51,13 @@ const StudentDashboard = () => {
     try {
       const data = await notificationService.getNotifications();
       setNotifications(data.notifications || []);
-      setUnreadCount(data.unread_count || 0);
     } catch (err) {
       console.error('Failed to load notifications:', err);
     }
   };
 
-  const handleViewResults = async (resultId, notificationId) => {
-    // Mark notification as read
-    if (notificationId) {
-      try {
-        await notificationService.markAsRead(notificationId);
-        // Refresh notifications to update unread count
-        fetchNotifications();
-      } catch (err) {
-        console.error('Failed to mark notification as read:', err);
-      }
-    }
-    
-    // Scroll to the results section
+  const handleViewResults = (resultId) => {
+    // Scroll to the results section or navigate to specific result
     const element = document.getElementById(`result-${resultId}`);
     if (element) {
       element.scrollIntoView({ behavior: 'smooth' });
@@ -110,16 +90,9 @@ const StudentDashboard = () => {
         {/* Notifications Section */}
         {notifications.length > 0 && (
           <div className="card mb-8">
-            <h2 className="text-2xl font-bold text-gray-900 mb-4 flex items-center justify-between">
-              <div className="flex items-center">
-                <FaBell className="mr-2 text-primary-600" />
-                Notifications
-                {unreadCount > 0 && (
-                  <span className="ml-2 bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full">
-                    {unreadCount} New
-                  </span>
-                )}
-              </div>
+            <h2 className="text-2xl font-bold text-gray-900 mb-4 flex items-center">
+              <FaBell className="mr-2 text-primary-600" />
+              Notifications
             </h2>
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
@@ -148,7 +121,7 @@ const StudentDashboard = () => {
                       <td className="px-6 py-4 whitespace-nowrap text-center text-sm">
                         {notif.result_id && (
                           <button
-                            onClick={() => handleViewResults(notif.result_id, notif.id)}
+                            onClick={() => handleViewResults(notif.result_id)}
                             className="inline-flex items-center px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 transition-colors"
                           >
                             <FaEye className="mr-2" />
@@ -192,83 +165,36 @@ const StudentDashboard = () => {
         ) : (
           <div className="space-y-6">
             {Object.entries(groupedResults).sort().map(([key, group]) => (
-            console.log("Grouped Results:", groupedResults); // DEBUG
               <div key={key} id={`result-${group.results[0]?.id}`} className="card">
                 <div className="mb-4">
                   <h2 className="text-xl font-bold text-gray-900 mb-2">{group.exam_name}</h2>
                   <p className="text-sm text-gray-600">Year {group.year} - Semester {group.semester}</p>
                 </div>
-                
-                {/* Summary Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                  {/* Total Marks Card */}
-                  {group.results[0]?.total_marks != null && (
-                    <div className="bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200 rounded-lg p-4 shadow-sm">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm font-medium text-blue-600 uppercase tracking-wide">Total Marks</p>
-                          <p className="text-3xl font-bold text-blue-900 mt-1">{group.results[0].total_marks}</p>
-                        </div>
-                        <div className="text-4xl">📊</div>
-                      </div>
-                    </div>
-                  )}
-                  
-                  {/* SGPA Card */}
-                  {group.results[0]?.sgpa != null && (
-                    <div className="bg-gradient-to-br from-green-50 to-green-100 border border-green-200 rounded-lg p-4 shadow-sm">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm font-medium text-green-600 uppercase tracking-wide">SGPA</p>
-                          <p className="text-3xl font-bold text-green-900 mt-1">{parseFloat(group.results[0].sgpa).toFixed(2)}</p>
-                        </div>
-                        <div className="text-4xl">🎓</div>
-                      </div>
-                    </div>
-                  )}
-                  
-                  {/* Result Status Card */}
-                  {group.results[0]?.overall_result && (
-                    <div className={`bg-gradient-to-br ${group.results[0].overall_result === "Pass" ? "from-emerald-50 to-emerald-100 border-emerald-200" : "from-red-50 to-red-100 border-red-200"} border rounded-lg p-4 shadow-sm`}>
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className={`text-sm font-medium ${group.results[0].overall_result === "Pass" ? "text-emerald-600" : "text-red-600"} uppercase tracking-wide`}>Result</p>
-                          <p className={`text-3xl font-bold ${group.results[0].overall_result === "Pass" ? "text-emerald-900" : "text-red-900"} mt-1`}>{group.results[0].overall_result}</p>
-                        </div>
-                        <div className="text-4xl">{group.results[0].overall_result === "Pass" ? "✅" : "❌"}</div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-                
-                <h3 className="text-lg font-semibold text-gray-800 mb-3">Subject-wise Details</h3>
                 <div className="overflow-x-auto">
                   <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
                       <tr>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Subject</th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Subject Code</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Internal Marks</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">External Marks</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total Marks</th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Grade</th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Credits</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
-                      {group.results.flatMap((result) => 
-                        result.subjects.map((subject, idx) => (
-                          <tr key={subject.id || idx}>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{subject.subject_name}</td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{subject.subject_code}</td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{subject.internal_marks ?? 'N/A'}</td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{subject.external_marks ?? 'N/A'}</td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{subject.total_marks ?? 'N/A'}</td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-primary-600">{subject.grade}</td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{subject.credits ?? "N/A"}</td>
-                          </tr>
-                        ))
-                      )}
+                      {group.results.map((result, idx) => (
+                        <tr key={idx}>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{result.subject_name}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{result.subject_code}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-primary-600">{result.grade}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{result.credits}</td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className={`px-2 py-1 text-xs rounded-full ${result.status === 'Pass' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                              {result.status}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
                     </tbody>
                   </table>
                 </div>
