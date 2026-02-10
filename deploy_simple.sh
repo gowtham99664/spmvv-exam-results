@@ -2,7 +2,7 @@
 set -e
 
 PROJECT_DIR="/root/spmvv-exam-results"
-SERVER_IP=$(hostname -I | awk {print })
+SERVER_IP=$(hostname -I | awk '{print $1}')
 
 # Credentials
 DB_NAME="spmvv_results"
