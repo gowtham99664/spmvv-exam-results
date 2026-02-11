@@ -192,51 +192,35 @@ const StudentDashboard = () => {
         ) : (
           <div className="space-y-6">
             {Object.entries(groupedResults).sort().map(([key, group]) => (
-            console.log("Grouped Results:", groupedResults); // DEBUG
               <div key={key} id={`result-${group.results[0]?.id}`} className="card">
                 <div className="mb-4">
                   <h2 className="text-xl font-bold text-gray-900 mb-2">{group.exam_name}</h2>
                   <p className="text-sm text-gray-600">Year {group.year} - Semester {group.semester}</p>
                 </div>
                 
-                {/* Summary Cards */}
+                {/* Summary Cards - Simple */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                  {/* Total Marks Card */}
+                  {/* Total Marks */}
                   {group.results[0]?.total_marks != null && (
-                    <div className="bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200 rounded-lg p-4 shadow-sm">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm font-medium text-blue-600 uppercase tracking-wide">Total Marks</p>
-                          <p className="text-3xl font-bold text-blue-900 mt-1">{group.results[0].total_marks}</p>
-                        </div>
-                        <div className="text-4xl">📊</div>
-                      </div>
+                    <div className="border border-gray-300 rounded-md p-4 bg-white">
+                      <p className="text-xs font-medium text-gray-600 uppercase mb-1">Total Marks</p>
+                      <p className="text-2xl font-bold text-gray-900">{group.results[0].total_marks}</p>
                     </div>
                   )}
                   
-                  {/* SGPA Card */}
+                  {/* SGPA */}
                   {group.results[0]?.sgpa != null && (
-                    <div className="bg-gradient-to-br from-green-50 to-green-100 border border-green-200 rounded-lg p-4 shadow-sm">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm font-medium text-green-600 uppercase tracking-wide">SGPA</p>
-                          <p className="text-3xl font-bold text-green-900 mt-1">{parseFloat(group.results[0].sgpa).toFixed(2)}</p>
-                        </div>
-                        <div className="text-4xl">🎓</div>
-                      </div>
+                    <div className="border border-gray-300 rounded-md p-4 bg-white">
+                      <p className="text-xs font-medium text-gray-600 uppercase mb-1">SGPA</p>
+                      <p className="text-2xl font-bold text-gray-900">{parseFloat(group.results[0].sgpa).toFixed(2)}</p>
                     </div>
                   )}
                   
-                  {/* Result Status Card */}
+                  {/* Result */}
                   {group.results[0]?.overall_result && (
-                    <div className={`bg-gradient-to-br ${group.results[0].overall_result === "Pass" ? "from-emerald-50 to-emerald-100 border-emerald-200" : "from-red-50 to-red-100 border-red-200"} border rounded-lg p-4 shadow-sm`}>
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className={`text-sm font-medium ${group.results[0].overall_result === "Pass" ? "text-emerald-600" : "text-red-600"} uppercase tracking-wide`}>Result</p>
-                          <p className={`text-3xl font-bold ${group.results[0].overall_result === "Pass" ? "text-emerald-900" : "text-red-900"} mt-1`}>{group.results[0].overall_result}</p>
-                        </div>
-                        <div className="text-4xl">{group.results[0].overall_result === "Pass" ? "✅" : "❌"}</div>
-                      </div>
+                    <div className="border border-gray-300 rounded-md p-4 bg-white">
+                      <p className="text-xs font-medium text-gray-600 uppercase mb-1">Result</p>
+                      <p className={`text-2xl font-bold ${group.results[0].overall_result === "Pass" ? "text-green-600" : "text-red-600"}`}>{group.results[0].overall_result}</p>
                     </div>
                   )}
                 </div>

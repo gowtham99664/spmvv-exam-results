@@ -156,6 +156,10 @@ const SemesterSummaryTable = ({ studentInfo, semesterSummary, onRefresh }) => {
                         </td>
                                                 <td className="text-center align-middle py-3">
                           <button className="btn btn-sm btn-primary" style={{ fontWeight: '500' }}>
+                            {isExpanded ? '▲ HIDE' : '▼ VIEW'}
+                          </button>
+                        </td>
+                      </tr>
 
                       {/* Expanded Attempts Section */}
                       {isExpanded && (
@@ -195,7 +199,7 @@ const SemesterSummaryTable = ({ studentInfo, semesterSummary, onRefresh }) => {
                                           <td className="text-center align-middle py-3">
                                             <span className="badge bg-dark">#{index + 1}</span>
                                           </td>
-                                          <td className="text-center align-middle py-3" style={{ fontWeight: '500', whiteSpace: 'normal', wordWrap: 'break-word', maxWidth: '300px' }}>
+                                          <td className="text-center align-middle py-3" style={{ fontWeight: '500' }}> fontWeight: \'500\', whiteSpace: \'normal\', wordWrap: \'break-word\', maxWidth: \'300px\' }}>
                                             {attempt.exam_name}
                                           </td>
                                           <td className="text-center align-middle py-3">
@@ -270,8 +274,7 @@ const SemesterSummaryTable = ({ studentInfo, semesterSummary, onRefresh }) => {
                                                           <th className="text-center align-middle py-3" style={{ fontWeight: '600' }}>SUBJECT NAME</th>
                                                           <th className="text-center align-middle py-3" style={{ fontWeight: '600' }}>CREDITS</th>
                                                           <th className="text-center align-middle py-3" style={{ fontWeight: '600' }}>TOTAL MARKS</th>
-                                                          <th className="text-center align-middle py-3" style={{ fontWeight: '600' }}>GRADE</th>
-                                                                                                                  </tr>
+                                                          </tr>
                                                       </thead>
                                                       <tbody>
                                                         {subjectDetails[attempt.result_id].map((subject, idx) => (
