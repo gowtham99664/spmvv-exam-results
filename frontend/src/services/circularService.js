@@ -63,6 +63,33 @@ const circularService = {
       throw error;
     }
   },
+
+  // Download circular attachment
+  downloadCircularAttachment: async (circularId, filename) => {
+    try {
+      const response = await api.get(`/circulars/${circularId}/download/`, {
+        responseType: 'blob', // Important for file download
+      });
+      
+      // Create a blob URL and trigger download
+      const blob = new Blob([response.data]);
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename || 'circular_attachment.pdf';
+      document.body.appendChild(link);
+      link.click();
+      
+      // Cleanup
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      
+      return { success: true };
+    } catch (error) {
+      console.error(`Error downloading circular ${circularId}:`, error);
+      throw error;
+    }
+  },
 };
 
 export default circularService;

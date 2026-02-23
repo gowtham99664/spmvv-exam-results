@@ -1,18 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import circularService from '../services/circularService';
+import { notificationService } from '../services/notificationService';
 import Navbar from '../components/Navbar';
-import { FaFileAlt, FaFilePdf, FaFileImage, FaCalendar } from 'react-icons/fa';
+import { FaGraduationCap, FaBell, FaDownload, FaEye } from 'react-icons/fa';
 
 const StudentCirculars = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const [circulars, setCirculars] = useState([]);
+  const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [filterCategory, setFilterCategory] = useState('all');
+  const [filterType, setFilterType] = useState('all'); // all, exam_notification, circular
+  const [filterCategory, setFilterCategory] = useState('all'); // for circulars
 
-  const categories = [
+  const circularCategories = [
     { value: 'general', label: 'General' },
     { value: 'exam', label: 'Exam' },
     { value: 'academic', label: 'Academic' },
@@ -26,26 +27,20 @@ const StudentCirculars = () => {
       navigate('/');
       return;
     }
-    fetchCirculars();
+    fetchNotifications();
   }, [user, navigate]);
 
-  const fetchCirculars = async () => {
+  const fetchNotifications = async () => {
     setLoading(true);
     try {
-      const data = await circularService.getCirculars();
-      setCirculars(data.circulars || []);
+      // Get notifications from last 1 year using 'page' filter
+      const data = await notificationService.getCombinedNotifications('page');
+      setNotifications(data.items || []);
     } catch (error) {
-      console.error('Failed to load circulars');
+      console.error('Failed to load notifications');
     } finally {
       setLoading(false);
     }
-  };
-
-  const getFileIcon = (fileUrl) => {
-    if (!fileUrl) return <FaFileAlt />;
-    if (fileUrl.endsWith('.pdf')) return <FaFilePdf className="text-red-500" />;
-    if (fileUrl.match(/\.(jpg|jpeg|png)$/i)) return <FaFileImage className="text-blue-500" />;
-    return <FaFileAlt />;
   };
 
   const getCategoryBadge = (category) => {
@@ -60,8 +55,60 @@ const StudentCirculars = () => {
     return colors[category] || colors.general;
   };
 
-  const filteredCirculars = circulars.filter(circular => {
-    if (filterCategory !== 'all' && circular.category !== filterCategory) return false;
+  const handleNotificationClick = async (notification) => {
+    // Mark exam notifications as read
+    if (notification.type === 'exam_notification' && !notification.is_read) {
+      try {
+        await notificationService.markAsRead(notification.notification_id);
+        // Update local state
+        setNotifications(notifications.map(n => 
+          n.id === notification.id ? { ...n, is_read: true } : n
+        ));
+      } catch (error) {
+        console.error('Failed to mark notification as read');
+      }
+    }
+
+    // Navigate to dashboard for exam notifications
+    if (notification.type === 'exam_notification' && notification.result_id) {
+      navigate('/student/dashboard', { state: { scrollToResult: notification.result_id } });
+    }
+  };
+
+  const handleDownloadAttachment = (fileUrl) => {
+    if (!fileUrl) return;
+    window.open(fileUrl, '_blank');
+  };
+
+  const formatDate = (dateString) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
+  };
+
+  // Get display title for notification
+  const getNotificationTitle = (notification) => {
+    if (notification.type === 'exam_notification') {
+      // Use the message content as title (it contains exam name)
+      return notification.message || notification.title || 'New Exam Result';
+    } else if (notification.type === 'circular') {
+      return notification.title;
+    }
+    return notification.title || notification.message;
+  };
+
+  // Filter notifications
+  const filteredNotifications = notifications.filter(notification => {
+    // Filter by type (exam_notification or circular)
+    if (filterType !== 'all' && notification.type !== filterType) return false;
+    
+    // Filter by circular category (only for circulars)
+    if (notification.type === 'circular' && filterCategory !== 'all' && 
+        notification.category !== filterCategory) return false;
+    
     return true;
   });
 
@@ -70,62 +117,144 @@ const StudentCirculars = () => {
       <Navbar />
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="mb-6">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Notifications & Circulars</h1>
-          <p className="text-gray-600">View important announcements and notices from the university</p>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">Circulars and Notifications</h1>
+          <p className="text-gray-600">View important announcements and notices from the past year</p>
         </div>
 
+        {/* Filters */}
         <div className="bg-white p-4 rounded-lg shadow mb-6">
-          <label className="block text-sm font-medium text-gray-700 mb-2">Filter by Category</label>
-          <select
-            value={filterCategory}
-            onChange={(e) => setFilterCategory(e.target.value)}
-            className="border rounded-lg px-3 py-2 w-64"
-          >
-            <option value="all">All Categories</option>
-            {categories.map(cat => (
-              <option key={cat.value} value={cat.value}>{cat.label}</option>
-            ))}
-          </select>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Filter by Type */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Filter by Type</label>
+              <select
+                value={filterType}
+                onChange={(e) => setFilterType(e.target.value)}
+                className="border rounded-lg px-3 py-2 w-full focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              >
+                <option value="all">All Types</option>
+                <option value="exam_notification">Exam Results</option>
+                <option value="circular">Circulars</option>
+              </select>
+            </div>
+
+            {/* Filter by Category (for circulars) */}
+            {(filterType === 'all' || filterType === 'circular') && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Filter by Category</label>
+                <select
+                  value={filterCategory}
+                  onChange={(e) => setFilterCategory(e.target.value)}
+                  className="border rounded-lg px-3 py-2 w-full focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                >
+                  <option value="all">All Categories</option>
+                  {circularCategories.map(cat => (
+                    <option key={cat.value} value={cat.value}>{cat.label}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
         </div>
 
         {loading ? (
-          <div className="text-center py-8">Loading circulars...</div>
-        ) : filteredCirculars.length === 0 ? (
+          <div className="text-center py-8">
+            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+            <p className="mt-2 text-gray-600">Loading notifications...</p>
+          </div>
+        ) : filteredNotifications.length === 0 ? (
           <div className="bg-white p-8 rounded-lg shadow text-center text-gray-500">
-            No circulars available at the moment
+            <p className="text-lg">No notifications available at the moment</p>
           </div>
         ) : (
-          <div className="grid gap-4">
-            {filteredCirculars.map(circular => (
-              <div key={circular.id} className="bg-white p-6 rounded-lg shadow hover:shadow-md transition">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-2">
-                      <h3 className="text-xl font-semibold text-gray-900">{circular.title}</h3>
-                      <span className={`px-3 py-1 rounded-full text-xs font-medium ${getCategoryBadge(circular.category)}`}>
-                        {circular.category.charAt(0).toUpperCase() + circular.category.slice(1)}
-                      </span>
-                      {circular.category === 'urgent' && (
-                        <span className="text-red-600 font-semibold text-sm">URGENT</span>
+          <div className="space-y-3">
+            {filteredNotifications.map(notification => (
+              <div 
+                key={notification.id} 
+                className={`bg-white rounded-lg shadow hover:shadow-md transition-shadow ${
+                  notification.type === 'exam_notification' && !notification.is_read 
+                    ? 'border-l-4 border-green-500' 
+                    : 'border-l-4 border-transparent'
+                }`}
+              >
+                <div className="p-4 flex items-center justify-between gap-4">
+                  {/* Left side: Icon, Title, Date, and Badges */}
+                  <div className="flex items-center gap-4 flex-1 min-w-0">
+                    {/* Icon */}
+                    <div className="flex-shrink-0">
+                      {notification.type === 'exam_notification' ? (
+                        <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
+                          <FaGraduationCap className="text-green-600 text-xl" />
+                        </div>
+                      ) : (
+                        <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
+                          <FaBell className="text-blue-600 text-xl" />
+                        </div>
                       )}
                     </div>
-                    <p className="text-gray-700 mb-3 whitespace-pre-wrap">{circular.description}</p>
-                    <div className="flex items-center gap-2 text-sm text-gray-500">
-                      <FaCalendar />
-                      <span>{circular.created_at}</span>
-                    </div>
-                    {circular.file_url && (
-                      <div className="mt-4">
-                        <a
-                          href={circular.file_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition"
-                        >
-                          {getFileIcon(circular.file_url)}
-                          <span>View Attachment</span>
-                        </a>
+
+                    {/* Title, Date, and Badges */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
+                        <h3 className="text-lg font-semibold text-gray-900 truncate">
+                          {getNotificationTitle(notification)}
+                        </h3>
+                        
+                        {/* New Badge for unread exam notifications */}
+                        {notification.type === 'exam_notification' && !notification.is_read && (
+                          <span className="px-2 py-1 bg-red-500 text-white text-xs rounded-full font-medium flex-shrink-0">
+                            New
+                          </span>
+                        )}
+
+                        {/* Urgent Badge */}
+                        {notification.category === 'urgent' && (
+                          <span className="px-2 py-1 bg-red-100 text-red-800 text-xs rounded-full font-semibold flex-shrink-0">
+                            URGENT
+                          </span>
+                        )}
                       </div>
+
+                      <div className="flex items-center gap-3 text-sm text-gray-500 flex-wrap">
+                        <span>{formatDate(notification.created_at)}</span>
+                        
+                        {/* Category Badge (for circulars) */}
+                        {notification.type === 'circular' && notification.category && (
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${getCategoryBadge(notification.category)}`}>
+                            {notification.category.charAt(0).toUpperCase() + notification.category.slice(1)}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Right side: Action Button */}
+                  <div className="flex-shrink-0">
+                    {/* View Result Button (for exam notifications) */}
+                    {notification.type === 'exam_notification' && notification.result_id && (
+                      <button
+                        onClick={() => handleNotificationClick(notification)}
+                        className="inline-flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors font-medium"
+                      >
+                        <FaEye />
+                        <span className="hidden sm:inline">View Result</span>
+                      </button>
+                    )}
+                    
+                    {/* Download Circular Button (for circulars) */}
+                    {notification.type === 'circular' && notification.file_url && (
+                      <button
+                        onClick={() => handleDownloadAttachment(notification.file_url)}
+                        className="inline-flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors font-medium"
+                      >
+                        <FaDownload />
+                        <span className="hidden sm:inline">Download Circular</span>
+                      </button>
+                    )}
+
+                    {/* If circular has no file, just show a view button */}
+                    {notification.type === 'circular' && !notification.file_url && (
+                      <span className="text-sm text-gray-400 italic">No attachment</span>
                     )}
                   </div>
                 </div>

@@ -254,7 +254,7 @@ pkill -f "docker build.*frontend" 2>/dev/null || true
 sleep 2
 
 echo -e "${CYAN}Building frontend image (this may take 2-3 minutes)...${NC}"
-docker build --no-cache \
+docker build \
   --build-arg VITE_API_URL="http://$SERVER_IP:8000/api" \
   -t spmvv-frontend . 2>&1 | grep -E "(STEP|Successfully|Error)" || true
 

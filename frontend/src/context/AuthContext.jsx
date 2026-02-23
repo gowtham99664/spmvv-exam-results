@@ -17,11 +17,9 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Check if user is already logged in
     const initializeAuth = () => {
       const storedUser = tokenManager.getUser();
       const token = tokenManager.getToken();
-      
       if (storedUser && token && !tokenManager.isTokenExpired(token)) {
         setUser(storedUser);
       } else {
@@ -29,7 +27,6 @@ export const AuthProvider = ({ children }) => {
       }
       setLoading(false);
     };
-
     initializeAuth();
   }, []);
 
@@ -41,11 +38,9 @@ export const AuthProvider = ({ children }) => {
       } else {
         response = await authService.studentLogin(credentials.hallTicketNumber, credentials.password);
       }
-      
       setUser(response.user);
       return { success: true, user: response.user };
     } catch (error) {
-      console.error('Login error:', error);
       return {
         success: false,
         error: error.response?.data?.error || 'Login failed. Please try again.'
@@ -58,7 +53,6 @@ export const AuthProvider = ({ children }) => {
       const response = await authService.register(userData);
       return { success: true, message: response.message };
     } catch (error) {
-      console.error('Registration error:', error);
       return {
         success: false,
         error: error.response?.data?.error || 'Registration failed. Please try again.'
@@ -77,12 +71,20 @@ export const AuthProvider = ({ children }) => {
       const response = await authService.changePassword(oldPassword, newPassword);
       return { success: true, message: response.message };
     } catch (error) {
-      console.error('Change password error:', error);
       return {
         success: false,
         error: error.response?.data?.error || 'Failed to change password. Please try again.'
       };
     }
+  };
+
+  // Merge updated fields into user state AND sessionStorage immediately.
+  const updateUser = (updatedFields) => {
+    setUser((prev) => {
+      const merged = { ...prev, ...updatedFields };
+      tokenManager.setUser(merged);
+      return merged;
+    });
   };
 
   const value = {
@@ -92,6 +94,7 @@ export const AuthProvider = ({ children }) => {
     register,
     logout,
     changePassword,
+    updateUser,
     isAuthenticated: authService.isAuthenticated,
     hasRole: authService.hasRole,
   };

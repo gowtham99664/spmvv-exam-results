@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import { studentService } from '../services/resultsService';
+import Toast from './Toast';
 
 const SemesterSummaryTable = ({ studentInfo, semesterSummary, onRefresh }) => {
   const [expandedGroup, setExpandedGroup] = useState(null);
   const [expandedExam, setExpandedExam] = useState(null);
   const [subjectDetails, setSubjectDetails] = useState({});
   const [loading, setLoading] = useState({});
+  const [toast, setToast] = useState(null);
 
   // Group and calculate summary data
   const groupedData = React.useMemo(() => {
@@ -62,7 +64,7 @@ const SemesterSummaryTable = ({ studentInfo, semesterSummary, onRefresh }) => {
         setSubjectDetails({ ...subjectDetails, [resultId]: data.subjects });
       } catch (error) {
         console.error('Error fetching subject details:', error);
-        alert('Failed to load subject details');
+        setToast({ message: 'Failed to load subject details', type: 'error' });
       } finally {
         setLoading({ ...loading, [resultId]: false });
       }
@@ -199,7 +201,7 @@ const SemesterSummaryTable = ({ studentInfo, semesterSummary, onRefresh }) => {
                                           <td className="text-center align-middle py-3">
                                             <span className="badge bg-dark">#{index + 1}</span>
                                           </td>
-                                          <td className="text-center align-middle py-3" style={{ fontWeight: '500' }}> fontWeight: \'500\', whiteSpace: \'normal\', wordWrap: \'break-word\', maxWidth: \'300px\' }}>
+                                          <td className="text-center align-middle py-3" style={{ fontWeight: '500', whiteSpace: 'normal', wordWrap: 'break-word', maxWidth: '300px' }}>
                                             {attempt.exam_name}
                                           </td>
                                           <td className="text-center align-middle py-3">
@@ -336,6 +338,14 @@ const SemesterSummaryTable = ({ studentInfo, semesterSummary, onRefresh }) => {
           </div>
         )}
       </div>
+      
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
+      )}
     </div>
   );
 };

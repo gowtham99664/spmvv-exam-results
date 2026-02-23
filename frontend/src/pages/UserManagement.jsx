@@ -4,6 +4,7 @@ import { FaUsers, FaEdit, FaTrash, FaKey, FaPlus, FaTimes, FaArrowLeft, FaSearch
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import Toast from '../components/Toast';
+import useEscapeKey from '../hooks/useEscapeKey';
 
 const UserManagement = () => {
   const { user: currentUser } = useAuth();
@@ -51,6 +52,11 @@ const UserManagement = () => {
     { value: 'principal', label: 'Principal' },
     { value: 'admin', label: 'Admin' },
   ];
+
+  // ESC key handlers to close modals
+  useEscapeKey(() => setShowUserModal(false), showUserModal);
+  useEscapeKey(() => setShowPasswordModal(false), showPasswordModal);
+  useEscapeKey(() => setShowBulkDeleteConfirm(false), showBulkDeleteConfirm);
 
   useEffect(() => {
     fetchUsers();

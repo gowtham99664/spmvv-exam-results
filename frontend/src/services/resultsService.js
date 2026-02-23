@@ -80,6 +80,11 @@ export const resultsService = {
   },
 
   // Download sample template (admin)
+  // Get dashboard stats (admin)
+  getDashboardStats: async () => {
+    const response = await api.get('/dashboard-stats/');
+    return response.data;
+  },
   downloadSampleTemplate: async () => {
     const response = await api.get('/sample-template/', {
       responseType: 'blob'

@@ -9,6 +9,7 @@ import AdminDashboard from './pages/AdminDashboard';
 import UserManagement from './pages/UserManagement';
 import CircularManagement from './pages/CircularManagement';
 import StudentCirculars from './pages/StudentCirculars';
+import HallTicketPage from './pages/HallTicketPage';
 
 function App() {
   return (
@@ -36,6 +37,11 @@ function App() {
           <Route path="/admin/circulars" element={
             <ProtectedRoute requiredRole="admin">
               <CircularManagement />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/hall-tickets" element={
+            <ProtectedRoute requiredRole="admin">
+              <HallTicketPage />
             </ProtectedRoute>
           } />
           <Route path="/user-management" element={

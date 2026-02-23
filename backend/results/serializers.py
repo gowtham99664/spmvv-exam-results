@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth.password_validation import validate_password
-from .models import Result, Subject, User, Notification, AuditLog, Circular
+from .models import Result, Subject, User, Notification, AuditLog, Circular, Exam, ExamSubject, ExamEnrollment, StudentPhoto, HallTicket
 from .models import User, Result, Subject, Notification, AuditLog
 
 class UserRegistrationSerializer(serializers.ModelSerializer):
@@ -118,3 +118,101 @@ class CircularSerializer(serializers.ModelSerializer):
                 return request.build_absolute_uri(obj.attachment.url)
             return obj.attachment.url
         return None
+
+
+
+# ==================== HALL TICKET SERIALIZERS ====================
+
+class ExamSubjectSerializer(serializers.ModelSerializer):
+    """Serializer for exam subjects"""
+    class Meta:
+        model = ExamSubject
+        fields = ["id", "subject_code", "subject_name", "subject_type", "exam_date", "exam_time", "duration", "order"]
+        extra_kwargs = {
+            'exam_date': {'required': False, 'allow_null': True}
+        }
+
+
+class ExamSerializer(serializers.ModelSerializer):
+    """Serializer for exams with nested subjects"""
+    subjects = ExamSubjectSerializer(many=True, read_only=True)
+    created_by_name = serializers.CharField(source="created_by.username", read_only=True)
+    enrollment_count = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Exam
+        fields = ["id", "exam_name", "year", "semester", "course", 
+                  "branch", "exam_center", "exam_start_time", "exam_end_time", "instructions",
+                  "is_active", "created_by", "created_by_name", "created_at", "updated_at",
+                  "subjects", "enrollment_count"]
+        read_only_fields = ["created_by", "created_at", "updated_at"]
+    
+    def get_enrollment_count(self, obj):
+        return obj.enrollments.count()
+
+
+class ExamEnrollmentSerializer(serializers.ModelSerializer):
+    """Serializer for exam enrollments"""
+    exam_name = serializers.CharField(source="exam.exam_name", read_only=True)
+    has_photo = serializers.SerializerMethodField()
+    has_hall_ticket = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = ExamEnrollment
+        fields = ["id", "exam", "exam_name", "roll_number", "student_name", 
+                  "student", "enrolled_at", "has_photo", "has_hall_ticket"]
+        read_only_fields = ["enrolled_at"]
+    
+    def get_has_photo(self, obj):
+        if obj.student:
+            return hasattr(obj.student, "hall_ticket_photo") and obj.student.hall_ticket_photo.consent_given
+        return False
+    
+    def get_has_hall_ticket(self, obj):
+        return hasattr(obj, "hall_ticket")
+
+
+class StudentPhotoSerializer(serializers.ModelSerializer):
+    """Serializer for student photos"""
+    photo_url = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = StudentPhoto
+        fields = ["student", "roll_number", "photo", "photo_url", "consent_given", 
+                  "consent_text", "consent_date", "uploaded_at", "updated_at"]
+        read_only_fields = ["uploaded_at", "updated_at"]
+    
+    def get_photo_url(self, obj):
+        if obj.photo:
+            request = self.context.get("request")
+            if request:
+                return request.build_absolute_uri(obj.photo.url)
+            return obj.photo.url
+        return None
+
+
+class HallTicketSerializer(serializers.ModelSerializer):
+    """Serializer for hall tickets"""
+    exam_name = serializers.CharField(source="exam.exam_name", read_only=True)
+    exam_details = ExamSerializer(source="exam", read_only=True)
+    enrollment_details = ExamEnrollmentSerializer(source="enrollment", read_only=True)
+    roll_number = serializers.CharField(source="enrollment.roll_number", read_only=True)
+    student_name = serializers.CharField(source="enrollment.student_name", read_only=True)
+    pdf_url = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = HallTicket
+        fields = ["id", "hall_ticket_number", "exam", "exam_name", "exam_details",
+                  "enrollment", "enrollment_details", "roll_number", "student_name",
+                  "pdf_file", "pdf_url", "qr_code_data", "status", "download_count",
+                  "generated_at", "downloaded_at", "generated_by"]
+        read_only_fields = ["hall_ticket_number", "qr_code_data", "generated_at", "generated_by"]
+    
+    def get_pdf_url(self, obj):
+        if obj.pdf_file:
+            request = self.context.get("request")
+            if request:
+                return request.build_absolute_uri(obj.pdf_file.url)
+            return obj.pdf_file.url
+        return None
+

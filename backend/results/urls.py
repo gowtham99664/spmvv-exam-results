@@ -1,6 +1,7 @@
 from django.urls import path
 from . import views
 from . import student_management
+from . import hall_ticket_views
 
 urlpatterns = [
     # Authentication endpoints
@@ -22,6 +23,7 @@ urlpatterns = [
     
     # Admin dashboard endpoints
     path('statistics/', views.get_statistics, name='statistics'),
+    path('dashboard-stats/', views.get_dashboard_stats, name='dashboard_stats'),
     path('sample-template/', views.download_sample_template, name='sample_template'),
     path('audit-logs/', views.get_audit_logs, name='audit_logs'),
     
@@ -50,4 +52,34 @@ urlpatterns = [
 
     # Health check endpoint
     path('health/', views.health_check, name='health_check'),
+    path('profile/', views.student_profile, name='student_profile'),
+    
+    # ==================== HALL TICKET MANAGEMENT ====================
+    
+    # Exam management
+    path("hall-tickets/exams/", hall_ticket_views.manage_exams, name="manage_hall_ticket_exams"),
+    path("hall-tickets/exams/<int:exam_id>/", hall_ticket_views.exam_detail, name="hall_ticket_exam_detail"),
+    
+    # Subject management
+    path("hall-tickets/exams/<int:exam_id>/subjects/", hall_ticket_views.add_exam_subject, name="add_exam_subject"),
+    path("hall-tickets/subjects/<int:subject_id>/", hall_ticket_views.update_exam_subject, name="update_exam_subject"),
+    path("hall-tickets/subjects/<int:subject_id>/delete/", hall_ticket_views.delete_exam_subject, name="delete_exam_subject"),
+    
+    # Student enrollment
+    path("hall-tickets/exams/<int:exam_id>/upload-students/", hall_ticket_views.upload_student_list, name="upload_student_list"),
+    path("hall-tickets/exams/<int:exam_id>/enrollments/", hall_ticket_views.list_enrollments, name="list_enrollments"),
+    
+    # Student photo upload
+    path("hall-tickets/photo/upload/", hall_ticket_views.upload_student_photo, name="upload_student_photo"),
+    path("hall-tickets/photo/", hall_ticket_views.get_student_photo, name="get_student_photo"),
+    
+    # Hall ticket generation and management
+    path("hall-tickets/exams/<int:exam_id>/generate/", hall_ticket_views.generate_hall_tickets, name="generate_hall_tickets"),
+    path("hall-tickets/exams/<int:exam_id>/tickets/", hall_ticket_views.list_hall_tickets, name="list_hall_tickets"),
+    path("hall-tickets/<int:ticket_id>/download/", hall_ticket_views.download_hall_ticket, name="download_hall_ticket"),
+    path("hall-tickets/exams/<int:exam_id>/download-all/", hall_ticket_views.download_all_hall_tickets, name="download_all_hall_tickets"),
+    path("hall-tickets/my-tickets/", hall_ticket_views.view_hall_ticket, name="view_hall_ticket"),
+    
+    # Sample template
+    path("hall-tickets/sample-template/", hall_ticket_views.download_sample_template, name="download_hall_ticket_sample_template"),
 ]

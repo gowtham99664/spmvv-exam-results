@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { resultsService } from '../services/resultsService';
 import { notificationService } from '../services/notificationService';
@@ -7,7 +7,7 @@ import Navbar from '../components/Navbar';
 import ChangePasswordModal from '../components/ChangePasswordModal';
 import IdleWarningModal from '../components/IdleWarningModal';
 import { useIdleTimeout } from '../hooks/useIdleTimeout';
-import { FaKey, FaGraduationCap, FaBell, FaBullhorn, FaChevronDown, FaChevronUp } from 'react-icons/fa';
+import { FaGraduationCap, FaBell, FaBullhorn, FaChevronDown, FaChevronUp } from 'react-icons/fa';
 
 const StudentDashboard = () => {
   const [consolidatedResults, setConsolidatedResults] = useState([]);
@@ -17,9 +17,11 @@ const StudentDashboard = () => {
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [expandedSemesters, setExpandedSemesters] = useState({});
+  const [expandedNotifications, setExpandedNotifications] = useState({});
   const [hasNewCirculars, setHasNewCirculars] = useState(false);
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const handleIdle = () => {
     logout();
@@ -28,33 +30,44 @@ const StudentDashboard = () => {
 
   const { showWarning, remainingTime, stayActive } = useIdleTimeout(handleIdle);
 
-  const handleLogoutNow = () => {
-    logout();
-    navigate('/login');
-  };
+  const handleLogoutNow = () => { logout(); navigate('/login'); };
 
   useEffect(() => {
     fetchConsolidatedResults();
     fetchNotifications();
-    
     const interval = setInterval(() => {
       fetchNotifications();
       fetchConsolidatedResults();
     }, 60000);
-    
     return () => clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    if (location.state?.scrollToResult && consolidatedResults.length > 0) {
+      const resultId = location.state.scrollToResult;
+      const targetSemester = consolidatedResults.find(sem =>
+        sem.attempts.some(att => att.result_id === resultId)
+      );
+      if (targetSemester) {
+        const key = `${targetSemester.year}-${targetSemester.semester}`;
+        setExpandedSemesters(prev => ({ ...prev, [key]: true }));
+        setTimeout(() => {
+          const element = document.getElementById(`semester-${key}`);
+          if (element) element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 300);
+        navigate(location.pathname, { replace: true, state: {} });
+      }
+    }
+  }, [location.state, consolidatedResults, navigate, location.pathname]);
 
   const fetchConsolidatedResults = async () => {
     setLoading(true);
     try {
       const data = await resultsService.getConsolidatedResults();
       setConsolidatedResults(data.consolidated_results || []);
-      
-      // Auto-expand all semesters by default
       const expanded = {};
-      (data.consolidated_results || []).forEach((semResult, idx) => {
-        expanded[`${semResult.year}-${semResult.semester}`] = true;
+      (data.consolidated_results || []).forEach((semResult) => {
+        expanded[`${semResult.year}-${semResult.semester}`] = false;
       });
       setExpandedSemesters(expanded);
     } catch (err) {
@@ -67,83 +80,53 @@ const StudentDashboard = () => {
   const fetchNotifications = async () => {
     try {
       const data = await notificationService.getCombinedNotifications();
-      setNotifications(data.items || []);
-      setUnreadCount(data.total_unread_notifications || 0);
-      
-      // Check if there are any circulars created within last 24 hours
+      setNotifications(data.notifications || []);
+      setUnreadCount(data.unread_count || 0);
       const now = new Date();
       const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-      
-      const newCirculars = (data.items || []).filter(item => {
-        if (item.type === 'circular') {
-          const createdAt = new Date(item.created_at);
-          return createdAt > twentyFourHoursAgo;
-        }
-        return false;
-      });
-      
+      const newCirculars = (data.items || []).filter(item =>
+        item.type === 'circular' && new Date(item.created_at) > twentyFourHoursAgo
+      );
       setHasNewCirculars(newCirculars.length > 0);
-    } catch (err) {
-      console.error('Failed to load notifications:', err);
-    }
-  };
-
-  const handleViewResults = async (resultId, notificationId) => {
-    if (notificationId) {
-      try {
-        await notificationService.markAsRead(notificationId);
-        fetchNotifications();
-      } catch (err) {
-        console.error('Failed to mark notification as read:', err);
-      }
-    }
-    
-    const element = document.getElementById(`result-${resultId}`);
-    if (element) {
-      element.scrollIntoView({ behavior: 'smooth' });
-    }
+    } catch (err) {}
   };
 
   const handleNotificationClick = async (notification) => {
     if (notification.type === 'exam_notification') {
-      // Handle exam notification
-      if (notification.id) {
-        try {
-          await notificationService.markAsRead(notification.id);
-          fetchNotifications();
-        } catch (err) {
-          console.error('Failed to mark notification as read:', err);
+      if (notification.notification_id && !notification.is_read) {
+        try { await notificationService.markAsRead(notification.notification_id); fetchNotifications(); } catch (err) {}
+      }
+      if (notification.result_id) {
+        const targetSemester = consolidatedResults.find(sem =>
+          sem.attempts.some(att => att.result_id === notification.result_id)
+        );
+        if (targetSemester) {
+          const key = `${targetSemester.year}-${targetSemester.semester}`;
+          setExpandedSemesters(prev => ({ ...prev, [key]: true }));
+          setTimeout(() => {
+            const element = document.getElementById(`semester-${key}`);
+            if (element) element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }, 100);
         }
       }
-      
-      const element = document.getElementById(`result-${notification.result_id}`);
-      if (element) {
-        element.scrollIntoView({ behavior: 'smooth' });
-      }
     } else if (notification.type === 'circular') {
-      // Handle circular - navigate to circulars page
       navigate('/student/circulars');
     }
   };
 
-  const toggleSemester = (key) => {
-    setExpandedSemesters(prev => ({
-      ...prev,
-      [key]: !prev[key]
-    }));
-  };
-
-  const getResultBadgeColor = (result) => {
-    return result === 'Pass' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800';
-  };
+  const toggleSemester = (key) => setExpandedSemesters(prev => ({ ...prev, [key]: !prev[key] }));
+  const toggleNotification = (index) => setExpandedNotifications(prev => ({ ...prev, [index]: !prev[index] }));
+  const getResultBadgeColor = (result) => result === 'Pass' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800';
 
   return (
     <div className="min-h-screen bg-gray-50">
       <Navbar />
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Student Dashboard</h1>
-          <p className="text-gray-600">Welcome, {user?.first_name || user?.username}</p>
+          <h1 className="text-3xl font-bold text-gray-900">
+            Welcome, {user?.first_name && user?.last_name ? `${user.first_name} ${user.last_name}` : user?.roll_number}
+          </h1>
+          <p className="text-gray-600 mt-2">Roll Number: {user?.roll_number}</p>
         </div>
 
         {notifications.length > 0 && (
@@ -153,54 +136,50 @@ const StudentDashboard = () => {
               <div className="flex-1">
                 <h3 className="font-semibold text-blue-900 mb-2">Recent Updates ({notifications.length})</h3>
                 <div className="space-y-2">
-                  {notifications.slice(0, 3).map((notification, index) => (
-                    <div key={index} className="bg-white p-3 rounded border border-blue-100">
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <p className="text-sm text-gray-700 mb-1">
-                            {notification.type === 'circular' && (
-                              <span className="inline-flex items-center mr-2">
-                                <FaBullhorn className="text-purple-500 mr-1" />
-                              </span>
-                            )}
-                            {notification.message || notification.title}
-                          </p>
-                          <p className="text-xs text-gray-500">
-                            {new Date(notification.created_at).toLocaleDateString()}
-                          </p>
+                  {notifications.slice(0, 3).map((notification, index) => {
+                    const isExpanded = expandedNotifications[index];
+                    return (
+                      <div key={index} className="bg-white rounded border border-blue-100 overflow-hidden">
+                        <div className="p-3 cursor-pointer hover:bg-gray-50 transition" onClick={() => toggleNotification(index)}>
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center flex-1">
+                              {notification.type === 'circular' && <FaBullhorn className="text-purple-500 mr-2" />}
+                              <p className="text-sm text-gray-700 font-medium truncate">{notification.title || notification.message}</p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-gray-500 whitespace-nowrap">{new Date(notification.created_at).toLocaleDateString()}</span>
+                              {isExpanded ? <FaChevronUp className="text-gray-400" /> : <FaChevronDown className="text-gray-400" />}
+                            </div>
+                          </div>
                         </div>
-                        <button
-                          onClick={() => handleNotificationClick(notification)}
-                          className="text-xs text-blue-600 hover:text-blue-800 font-medium ml-2 flex-shrink-0"
-                        >
-                          {notification.type === 'circular' ? 'View' : 'View Results'}
-                        </button>
+                        {isExpanded && (
+                          <div className="px-3 pb-3 border-t border-gray-100 pt-2">
+                            <p className="text-sm text-gray-600 mb-2">{notification.message}</p>
+                            <button onClick={(e) => { e.stopPropagation(); handleNotificationClick(notification); }}
+                              className="text-xs text-blue-600 hover:text-blue-800 font-medium">
+                              {notification.type === 'circular' ? 'View Details' : 'View Results'}
+                            </button>
+                          </div>
+                        )}
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             </div>
           </div>
         )}
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-          <button onClick={() => setShowPasswordModal(true)} className="card flex items-center space-x-4 hover:shadow-lg transition-shadow">
-            <FaKey className="text-3xl text-primary-600" />
-            <div className="text-left">
-              <h3 className="font-semibold text-gray-900">Change Password</h3>
-              <p className="text-sm text-gray-600">Update your account password</p>
-            </div>
-          </button>
-          <button onClick={() => navigate("/student/circulars")} className="card flex items-center space-x-4 hover:shadow-lg transition-shadow relative">
+        {/* Quick actions: only Circulars + Total Semesters */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+          <button onClick={() => navigate("/student/circulars")}
+            className="card flex items-center space-x-4 hover:shadow-lg transition-shadow relative">
             <FaBullhorn className="text-3xl text-purple-600" />
             <div className="text-left">
               <h3 className="font-semibold text-gray-900 flex items-center gap-2">
-                View Circulars
+                Circulars and Notifications
                 {hasNewCirculars && (
-                  <span className="inline-block px-2 py-0.5 text-xs font-bold text-white bg-red-500 rounded-full">
-                    NEW
-                  </span>
+                  <span className="inline-block px-2 py-0.5 text-xs font-bold text-white bg-red-500 rounded-full animate-pulse">NEW</span>
                 )}
               </h3>
               <p className="text-sm text-gray-600">Check notifications and announcements</p>
@@ -231,29 +210,24 @@ const StudentDashboard = () => {
           </div>
         ) : (
           <div className="space-y-6">
-            {consolidatedResults.map((semesterData, idx) => {
+            {consolidatedResults.map((semesterData) => {
               const key = `${semesterData.year}-${semesterData.semester}`;
               const isExpanded = expandedSemesters[key];
-              
               return (
-                <div key={key} className="bg-white rounded-lg shadow">
-                  <div 
-                    className="p-6 cursor-pointer hover:bg-gray-50 transition"
-                    onClick={() => toggleSemester(key)}
-                  >
+                <div key={key} id={`semester-${key}`} className="bg-white rounded-lg shadow">
+                  <div className="p-6 cursor-pointer hover:bg-gray-50 transition" onClick={() => toggleSemester(key)}>
                     <div className="flex justify-between items-center mb-4">
                       <div className="flex items-center gap-4">
                         <h2 className="text-2xl font-bold text-gray-900">
                           {semesterData.year_display} {semesterData.semester_display}
                         </h2>
-                        {isExpanded ? <FaChevronUp /> : <FaChevronDown />}
+                        <span className="text-sm text-gray-500">
+                          {semesterData.attempts.length} attempt{semesterData.attempts.length > 1 ? 's' : ''}
+                        </span>
+                        {isExpanded ? <FaChevronUp className="text-gray-500" /> : <FaChevronDown className="text-gray-500" />}
                       </div>
-                      <span className="text-sm text-gray-500">
-                        {semesterData.attempts.length} attempt{semesterData.attempts.length > 1 ? 's' : ''}
-                      </span>
                     </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                       <div className="border rounded-lg p-4">
                         <p className="text-sm text-gray-600 mb-1">Total Marks</p>
                         <p className="text-2xl font-bold text-gray-900">
@@ -274,9 +248,7 @@ const StudentDashboard = () => {
                       </div>
                       <div className="border rounded-lg p-4">
                         <p className="text-sm text-gray-600 mb-1">Pending Subjects</p>
-                        <p className="text-2xl font-bold text-red-600">
-                          {semesterData.pending_subjects_count}
-                        </p>
+                        <p className="text-2xl font-bold text-red-600">{semesterData.pending_subjects_count}</p>
                         {semesterData.pending_subjects_count > 0 && (
                           <p className="text-xs text-gray-500 mt-1">
                             {semesterData.pending_subjects.map(s => s.subject_code).join(', ')}
@@ -289,26 +261,19 @@ const StudentDashboard = () => {
                   {isExpanded && (
                     <div className="border-t p-6 bg-gray-50">
                       <h3 className="font-semibold text-gray-900 mb-4">Exam Attempts</h3>
-                      
-                      {semesterData.attempts.map((attempt, attemptIdx) => (
+                      {semesterData.attempts.map((attempt) => (
                         <div key={attempt.result_id} className="mb-6 last:mb-0">
                           <div className="bg-white rounded-lg p-4 mb-3">
                             <div className="flex justify-between items-start mb-2">
                               <div>
                                 <h4 className="font-semibold text-gray-900">{attempt.exam_name}</h4>
-                                <p className="text-sm text-gray-600">
-                                  {attempt.result_type_display} • Uploaded: {attempt.uploaded_at}
-                                </p>
+                                <p className="text-sm text-gray-600">{attempt.result_type_display} • Uploaded: {attempt.uploaded_at}</p>
                               </div>
-                              <div className="text-right">
-                                <p className="text-sm text-gray-600">Original SGPA: <span className="font-semibold">{attempt.original_sgpa?.toFixed(2)}</span></p>
-                                <span className={`inline-block px-2 py-1 rounded text-xs font-semibold ${getResultBadgeColor(attempt.original_result)}`}>
-                                  {attempt.original_result}
-                                </span>
-                              </div>
+                              <span className={`inline-block px-2 py-1 rounded text-xs font-semibold ${getResultBadgeColor(attempt.original_result)}`}>
+                                {attempt.original_result}
+                              </span>
                             </div>
                           </div>
-
                           <div className="bg-white rounded-lg overflow-hidden">
                             <h5 className="font-semibold text-gray-900 p-4 bg-gray-100">Subject-wise Details</h5>
                             <div className="overflow-x-auto">
@@ -325,7 +290,7 @@ const StudentDashboard = () => {
                                   </tr>
                                 </thead>
                                 <tbody className="bg-white divide-y divide-gray-200">
-                                  {attempt.subjects.map((subject, subIdx) => (
+                                  {attempt.subjects.map((subject) => (
                                     <tr key={subject.id} className={subject.grade === 'F' ? 'bg-red-50' : ''}>
                                       <td className="px-4 py-3 text-sm text-gray-900">{subject.subject_name}</td>
                                       <td className="px-4 py-3 text-sm text-gray-900">{subject.subject_code}</td>
@@ -337,9 +302,7 @@ const StudentDashboard = () => {
                                           subject.grade === 'F' ? 'bg-red-100 text-red-800' :
                                           subject.grade === 'O' || subject.grade === 'A' ? 'bg-green-100 text-green-800' :
                                           'bg-gray-100 text-gray-800'
-                                        }`}>
-                                          {subject.grade}
-                                        </span>
+                                        }`}>{subject.grade}</span>
                                       </td>
                                       <td className="px-4 py-3 text-sm text-gray-900">{subject.credits}</td>
                                     </tr>
@@ -359,9 +322,7 @@ const StudentDashboard = () => {
         )}
       </div>
 
-      {showPasswordModal && (
-        <ChangePasswordModal onClose={() => setShowPasswordModal(false)} />
-      )}
+      {showPasswordModal && <ChangePasswordModal onClose={() => setShowPasswordModal(false)} />}
 
       {showWarning && (
         <IdleWarningModal

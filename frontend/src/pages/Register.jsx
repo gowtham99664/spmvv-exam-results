@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { validateEmail, validatePassword, sanitizeInput } from '../utils/validation';
+import Toast from '../components/Toast';
 
 const Register = () => {
   const [formData, setFormData] = useState({
@@ -15,6 +16,7 @@ const Register = () => {
   });
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
+  const [toast, setToast] = useState(null);
   const { register } = useAuth();
   const navigate = useNavigate();
 
@@ -74,8 +76,8 @@ const Register = () => {
       };
       const result = await register(userData);
       if (result.success) {
-        alert('Registration successful!');
-        navigate('/login');
+        setToast({ message: 'Registration successful!', type: 'success' });
+        setTimeout(() => navigate('/login'), 2000);
       } else {
         setErrors({ general: result.error });
       }
@@ -235,6 +237,14 @@ const Register = () => {
           </form>
         </div>
       </div>
+    
+    {toast && (
+      <Toast
+        message={toast.message}
+        type={toast.type}
+        onClose={() => setToast(null)}
+      />
+    )}
     </div>
   );
 };

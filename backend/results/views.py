@@ -1792,3 +1792,88 @@ def circular_detail(request, circular_id):
         return Response({
             "message": "Circular deleted successfully"
         }, status=status.HTTP_200_OK)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_dashboard_stats(request):
+    """Get dashboard statistics for admin overview"""
+    try:
+        from .models import Exam, HallTicket, Circular
+        
+        # Total exams count
+        total_exams = Result.objects.values('exam_name').distinct().count()
+        
+        # Total hall tickets count
+        total_hall_tickets = HallTicket.objects.count()
+        
+        # Active circulars count
+        active_circulars = Circular.objects.filter(is_active=True).count()
+        
+        # Total users count (excluding superadmin)
+        total_users = User.objects.filter(is_superuser=False).count()
+        
+        return Response({
+            'total_exams': total_exams,
+            'total_hall_tickets': total_hall_tickets,
+            'active_circulars': active_circulars,
+            'total_users': total_users
+        })
+    except Exception as e:
+        logger.error(f"Error fetching dashboard stats: {str(e)}")
+        return Response({
+            'error': 'Failed to fetch dashboard statistics'
+        }, status=500)
+
+
+# ==================== STUDENT PROFILE ====================
+
+@api_view(['GET', 'PUT'])
+@permission_classes([IsAuthenticated])
+def student_profile(request):
+    """Get or update student profile"""
+    user = request.user
+
+    if request.method == 'GET':
+        from .models import StudentPhoto
+        photo_url = None
+        try:
+            student_photo = StudentPhoto.objects.get(student=user)
+            if student_photo.photo:
+                photo_url = student_photo.photo.url  # relative URL; frontend builds absolute
+        except StudentPhoto.DoesNotExist:
+            pass
+
+        return Response({
+            'first_name': user.first_name or '',
+            'last_name': user.last_name or '',
+            'email': user.email or '',
+            'roll_number': user.roll_number or '',
+            'username': user.username,
+            'profile_photo_url': photo_url,
+        })
+
+    elif request.method == 'PUT':
+        first_name = request.data.get('first_name', '').strip()
+        last_name = request.data.get('last_name', '').strip()
+        email = request.data.get('email', '').strip()
+
+        if not first_name:
+            return Response({'error': 'First name is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if email and '@' not in email:
+            return Response({'error': 'Please enter a valid email address'}, status=status.HTTP_400_BAD_REQUEST)
+
+        user.first_name = first_name
+        user.last_name = last_name
+        user.email = email
+        user.save(update_fields=['first_name', 'last_name', 'email'])
+
+        create_audit_log(user, 'profile_updated', f"Student updated profile: {user.roll_number}", request)
+
+        return Response({
+            'message': 'Profile updated successfully',
+            'first_name': user.first_name,
+            'last_name': user.last_name,
+            'email': user.email,
+        })

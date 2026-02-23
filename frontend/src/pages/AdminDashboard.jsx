@@ -3,15 +3,18 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { resultsService, studentService } from '../services/resultsService';
 import Navbar from '../components/Navbar';
+import StatCard from '../components/StatCard';
+import DashboardCard from '../components/DashboardCard';
 import StatisticsModal from '../components/StatisticsModal';
-import ChangePasswordModal from '../components/ChangePasswordModal';
-import IdleWarningModal from '../components/IdleWarningModal';
 import SearchStudentModal from '../components/SearchStudentModal';
 import Toast from '../components/Toast';
 import SemesterSummaryTable from '../components/SemesterSummaryTable';
-import { useIdleTimeout } from '../hooks/useIdleTimeout';
 import { validateExcelFile } from '../utils/validation';
-import { FaUpload, FaKey, FaUsers, FaDownload, FaCalendar, FaTrash, FaChartBar, FaFileExcel, FaSearch, FaBullhorn } from 'react-icons/fa';
+import { 
+  FaUpload, FaUsers, FaBullhorn, FaIdCard, FaSearch, 
+  FaCalendar, FaTrash, FaChartBar, FaDownload, FaFileExcel 
+} from 'react-icons/fa';
+
 const AdminDashboard = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -19,9 +22,9 @@ const AdminDashboard = () => {
   const [loading, setLoading] = useState(false);
   const [uploadLoading, setUploadLoading] = useState(false);
   const [error, setError] = useState('');
-  const [uploadMessage, setUploadMessage] = useState({ type: '', text: '' });
-  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [toast, setToast] = useState({ show: false, message: '', type: '' });
   const [showSearchModal, setShowSearchModal] = useState(false);
+  const [showUploadModal, setShowUploadModal] = useState(false);
   const [file, setFile] = useState(null);
   const [year, setYear] = useState('');
   const [semester, setSemester] = useState('');
@@ -38,12 +41,17 @@ const AdminDashboard = () => {
   const [studentHistory, setStudentHistory] = useState(null);
   const [loadingHistory, setLoadingHistory] = useState(false);
 
-  useEffect(() => {
-    fetchUploadedExams();
-  }, []);
+  // Stats
+  const [stats, setStats] = useState({
+    totalExams: 0,
+    hallTickets: 0,
+    circulars: 0,
+    users: 0
+  });
 
   useEffect(() => {
-    fetchStatistics();
+    fetchUploadedExams();
+    fetchDashboardStats();
   }, []);
 
   useEffect(() => {
@@ -52,12 +60,25 @@ const AdminDashboard = () => {
     }
   }, [course]);
 
-  const fetchStatistics = async () => {
+  const fetchDashboardStats = async () => {
     try {
-      const data = await resultsService.getStatistics();
-      setStatistics(data);
+      // Fetch dashboard stats from backend API
+      const dashboardData = await resultsService.getDashboardStats();
+      setStats({
+        totalExams: dashboardData.total_exams || 0,
+        hallTickets: dashboardData.total_hall_tickets || 0,
+        circulars: dashboardData.active_circulars || 0,
+        users: dashboardData.total_users || 0
+      });
     } catch (err) {
-      console.error('Failed to fetch statistics', err);
+      console.error('Failed to fetch stats', err);
+      // Fallback to zeros on error
+      setStats({
+        totalExams: 0,
+        hallTickets: 0,
+        circulars: 0,
+        users: 0
+      });
     }
   };
 
@@ -76,12 +97,16 @@ const AdminDashboard = () => {
     ];
   };
 
+  const showToast = (message, type) => {
+    setToast({ show: true, message, type });
+  };
+
   const handleDownloadTemplate = async () => {
     try {
       await resultsService.downloadSampleTemplate();
-      setUploadMessage({ type: 'success', text: 'Template downloaded successfully!' });
+      showToast('Template downloaded successfully!', 'success');
     } catch (err) {
-      setUploadMessage({ type: 'error', text: 'Failed to download template' });
+      showToast('Failed to download template', 'error');
     }
   };
 
@@ -112,11 +137,12 @@ const AdminDashboard = () => {
     
     try {
       await resultsService.deleteExamResults(examName);
-      setUploadMessage({ type: 'success', text: `Successfully deleted ${examName}` });
+      showToast(`Successfully deleted ${examName}`, 'success');
       fetchUploadedExams();
+      fetchDashboardStats();
     } catch (err) {
       const errorMsg = err.response?.data?.error || 'Failed to delete exam results';
-      setUploadMessage({ type: 'error', text: errorMsg });
+      showToast(errorMsg, 'error');
     }
   };
 
@@ -127,7 +153,7 @@ const AdminDashboard = () => {
       setShowStatsModal(true);
     } catch (err) {
       console.error('Failed to fetch statistics:', err);
-      alert('Failed to load statistics');
+      showToast('Failed to load statistics', 'error');
     }
   };
 
@@ -135,18 +161,17 @@ const AdminDashboard = () => {
     const selectedFile = e.target.files[0];
     const validation = validateExcelFile(selectedFile);
     if (!validation.valid) {
-      setUploadMessage({ type: 'error', text: validation.message });
+      showToast(validation.message, 'error');
       setFile(null);
     } else {
       setFile(selectedFile);
-      setUploadMessage({ type: '', text: '' });
     }
   };
 
   const handleUpload = async (e) => {
     e.preventDefault();
     if (!file || !year || !semester || !resultType || !course) {
-      setUploadMessage({ type: 'error', text: 'Please fill all required fields (Course, Year, Semester, Result Type, Excel File)' });
+      showToast('Please fill all required fields (Course, Year, Semester, Result Type, Excel File)', 'error');
       return;
     }
     
@@ -158,21 +183,20 @@ const AdminDashboard = () => {
       currentDate.setHours(0, 0, 0, 0);
       
       if (selectedDate > currentDate) {
-        setUploadMessage({ type: 'error', text: 'Exam Held Date cannot be in the future' });
+        showToast('Exam Held Date cannot be in the future', 'error');
         return;
       }
       
-      // Format as YYYY-MM
       examDate = `${examYear}-${examMonth.padStart(2, '0')}`;
     } else if (examMonth || examYear) {
-      setUploadMessage({ type: 'error', text: 'Please provide both month and year or leave both empty' });
+      showToast('Please provide both month and year or leave both empty', 'error');
       return;
     }
     
     setUploadLoading(true);
     try {
       const result = await resultsService.uploadResults(file, year, semester, resultType, course, examDate);
-      setUploadMessage({ type: 'success', text: result.message || 'Results uploaded successfully' });
+      showToast(result.message || 'Results uploaded successfully', 'success');
       setFile(null);
       setYear('');
       setSemester('');
@@ -181,11 +205,13 @@ const AdminDashboard = () => {
       setExamHeldDate('');
       setExamMonth('');
       setExamYear('');
+      setShowUploadModal(false);
       fetchUploadedExams();
+      fetchDashboardStats();
       e.target.reset();
     } catch (err) {
       const errorMsg = err.response?.data?.error || err.response?.data?.errors?.join(', ') || 'Failed to upload results';
-      setUploadMessage({ type: 'error', text: errorMsg });
+      showToast(errorMsg, 'error');
     } finally {
       setUploadLoading(false);
     }
@@ -200,212 +226,120 @@ const AdminDashboard = () => {
       setStudentHistory(data);
     } catch (err) {
       console.error('Failed to load student history:', err);
-      alert('Failed to load student history');
+      showToast('Failed to load student history', 'error');
     } finally {
       setLoadingHistory(false);
     }
   };
 
-
   return (
     <div className="min-h-screen bg-gray-50">
       <Navbar />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <h1 className="text-3xl font-bold mb-8">Admin Dashboard</h1>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-          <div className="card">
-            <h2 className="text-xl font-bold mb-4 flex items-center">
-              <FaUpload className="mr-2" />
-              Upload Results
-            </h2>
-            <form onSubmit={handleUpload}>
-
-              
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Course <span className="text-red-500">*</span>
-                </label>
-                <select 
-                  value={course} 
-                  onChange={(e) => setCourse(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
-                  required
-                >
-                  <option value="btech">B.Tech</option>
-                  <option value="mtech">M.Tech</option>
-                </select>
-              </div>
-
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Academic Year <span className="text-red-500">*</span>
-                </label>
-                <select 
-                  value={year} 
-                  onChange={(e) => setYear(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
-                  required
-                >
-                  <option value="">Select Year</option>
-                  {getYearOptions().map(option => (
-                    <option key={option.value} value={option.value}>{option.label}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Semester <span className="text-red-500">*</span>
-                </label>
-                <select 
-                  value={semester} 
-                  onChange={(e) => setSemester(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
-                  required
-                >
-                  <option value="">Select Semester</option>
-                  <option value="1">I Semester</option>
-                  <option value="2">II Semester</option>
-                </select>
-              </div>
-
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Result Type <span className="text-red-500">*</span>
-                </label>
-                <select 
-                  value={resultType} 
-                  onChange={(e) => setResultType(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
-                  required
-                >
-                  <option value="">Select Result Type</option>
-                  <option value="regular">Regular</option>
-                  <option value="supplementary">Supplementary</option>
-                  <option value="both">Regular and Supplementary</option>
-                </select>
-              </div>
-
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Exam Held Month & Year (Optional)
-                </label>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <select 
-                      value={examMonth}
-                      onChange={(e) => setExamMonth(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
-                    >
-                      <option value="">Select Month</option>
-                      <option value="01">January</option>
-                      <option value="02">February</option>
-                      <option value="03">March</option>
-                      <option value="04">April</option>
-                      <option value="05">May</option>
-                      <option value="06">June</option>
-                      <option value="07">July</option>
-                      <option value="08">August</option>
-                      <option value="09">September</option>
-                      <option value="10">October</option>
-                      <option value="11">November</option>
-                      <option value="12">December</option>
-                    </select>
-                  </div>
-                  <div>
-                    <input 
-                      type="number"
-                      value={examYear}
-                      onChange={(e) => setExamYear(e.target.value)}
-                      placeholder="Enter Year (e.g., 2026)"
-                      min="2000"
-                      max={new Date().getFullYear()}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
-                    />
-                  </div>
-                </div>
-                <p className="text-xs text-gray-500 mt-1">
-                  Select month and enter year for exam name generation. Must be a past or current date.
-                </p>
-              </div>
-
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Excel File <span className="text-red-500">*</span>
-                </label>
-                <input 
-                  type="file" 
-                  onChange={handleFileChange} 
-                  accept=".xlsx,.xls,.csv" 
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
-                  required
-                />
-                <p className="text-xs text-gray-500 mt-1">
-                  Excel file should contain: Roll Number, Student Name, and Subject details only
-                </p>
-              </div>
-
-              <button 
-                type="submit" 
-                disabled={uploadLoading || !file}
-                className="w-full bg-primary-600 text-white py-2 px-4 rounded-md hover:bg-primary-700 disabled:bg-g
-ray-400 disabled:cursor-not-allowed transition-colors"
-              >
-                {uploadLoading ? "Uploading..." : "Upload Results"}
-              </button>
-            </form>
-          </div>
-          
-          <div className="card">
-            <h2 className="text-xl font-bold mb-4">Quick Actions</h2>
-            <button 
-              onClick={() => setShowPasswordModal(true)} 
-              className="w-full bg-gray-600 text-white py-2 px-4 rounded-md hover:bg-gray-700 mb-3 flex items-center justify-center"
-            >
-              <FaKey className="mr-2" />
-              Change Password
-            </button>
-            {user?.can_manage_users && (
-              <button
-                onClick={() => navigate("/user-management")}
-                className="w-full bg-teal-600 text-white py-2 px-4 rounded-md hover:bg-teal-700 mb-3 flex items-center justify-center"
-              >
-                <FaUsers className="mr-2" />
-                Manage Users
-              </button>
-            )}
-            <button 
-              onClick={() => navigate("/admin/circulars")} 
-              className="w-full bg-purple-600 text-white py-2 px-4 rounded-md hover:bg-purple-700 mb-3 flex items-center justify-center"
-            >
-              <FaBullhorn className="mr-2" />
-              Manage Circulars
-            </button>
-            <button 
-              onClick={handleDownloadTemplate} 
-              className="w-full bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700 mb-3 flex items-center justify-center"
-            >
-              <FaFileExcel className="mr-2" />
-              Download Template
-            </button>
-            <button 
-              onClick={() => setShowSearchModal(true)} 
-              className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 mb-4 flex items-center justify-center"
-            >
-              <FaSearch className="mr-2" />
-              Search Student
-            </button>
-            <div className="bg-blue-50 p-4 rounded-lg">
-              <p className="text-sm text-gray-600 flex items-center">
-                <FaUsers className="mr-2" />
-                Total Exams Uploaded
-              </p>
-              <p className="text-3xl font-bold text-blue-600 mt-2">{exams.length}</p>
-            </div>
-          </div>
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-900">Admin Dashboard</h1>
+          <p className="text-gray-600 mt-2">Manage exams, users, and system settings</p>
         </div>
-        
 
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          <StatCard
+            title="Exams Uploaded"
+            value={stats.totalExams}
+            icon={<FaCalendar />}
+            color="blue"
+          />
+          <StatCard
+            title="Hall Tickets"
+            value={stats.hallTickets}
+            icon={<FaIdCard />}
+            color="purple"
+          />
+          <StatCard
+            title="Active Circulars"
+            value={stats.circulars}
+            icon={<FaBullhorn />}
+            color="cyan"
+          />
+          <StatCard
+            title="Total Users"
+            value={stats.users}
+            icon={<FaUsers />}
+            color="green"
+          />
+        </div>
+
+        {/* Admin Panel Header */}
+        <div className="mb-4">
+          <h2 className="text-xl font-bold text-gray-900">Admin Panel</h2>
+          <p className="text-sm text-gray-600 mt-1">Click on any card to get started</p>
+        </div>
+
+        {/* Action Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+          {/* Upload Results Card */}
+          <DashboardCard
+            title="Upload Results"
+            description="Upload exam results via Excel file and manage existing uploads"
+            icon={<FaUpload />}
+            color="blue"
+            onClick={() => setShowUploadModal(true)}
+            footer={
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleDownloadTemplate();
+                }}
+                className="text-sm text-blue-600 hover:text-blue-700 font-medium flex items-center space-x-2"
+              >
+                <FaFileExcel />
+                <span>Download Excel Template</span>
+              </button>
+            }
+          />
+
+          {/* Manage Users Card */}
+          {user?.can_manage_users && (
+            <DashboardCard
+              title="Manage Users"
+              description="Add, edit, or remove user accounts and manage permissions"
+              icon={<FaUsers />}
+              color="indigo"
+              onClick={() => navigate("/user-management")}
+              
+            />
+          )}
+
+          {/* Manage Circulars Card */}
+          <DashboardCard
+            title="Manage Circulars"
+            description="Create and publish notices, announcements, and circulars for students"
+            icon={<FaBullhorn />}
+            color="purple"
+            onClick={() => navigate("/admin/circulars")}
+            badge={`${stats.circulars} active`}
+          />
+
+          {/* Manage Hall Tickets Card */}
+          <DashboardCard
+            title="Manage Hall Tickets"
+            description="Generate and manage hall tickets for examinations"
+            icon={<FaIdCard />}
+            color="cyan"
+            onClick={() => navigate("/admin/hall-tickets")}
+            
+          />
+
+          {/* Search Student Card */}
+          <DashboardCard
+            title="Search Student"
+            description="Look up student results and academic history by roll number"
+            icon={<FaSearch />}
+            color="teal"
+            onClick={() => setShowSearchModal(true)}
+          />
+        </div>
 
         {/* Student History Section */}
         {loadingHistory && (
@@ -427,10 +361,11 @@ ray-400 disabled:cursor-not-allowed transition-colors"
           </div>
         )}
         
+        {/* Recent Exams Table */}
         <div className="card">
           <h2 className="text-xl font-bold mb-4 flex items-center">
-            <FaCalendar className="mr-2" />
-            Uploaded Exams
+            <FaCalendar className="mr-2 text-blue-600" />
+            Recent Exam Uploads
           </h2>
           
           {loading ? (
@@ -440,7 +375,9 @@ ray-400 disabled:cursor-not-allowed transition-colors"
             </div>
           ) : exams.length === 0 ? (
             <div className="text-center py-12 text-gray-500">
-              <p className="text-lg">No exams uploaded yet</p>
+              <FaCalendar className="text-5xl mx-auto mb-4 text-gray-300" />
+              <p className="text-lg font-medium">No exams uploaded yet</p>
+              <p className="text-sm mt-2">Click "Upload Results" to get started</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -455,7 +392,7 @@ ray-400 disabled:cursor-not-allowed transition-colors"
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {exams.map((exam, i) => (
-                    <tr key={i} className="hover:bg-gray-50">
+                    <tr key={i} className="hover:bg-gray-50 transition-colors">
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{exam.exam_name}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {new Date(exam.uploaded_at).toLocaleDateString('en-US', { 
@@ -464,7 +401,8 @@ ray-400 disabled:cursor-not-allowed transition-colors"
                           day: 'numeric',
                           hour: '2-digit',
                           minute: '2-digit'
-                        })}</td>
+                        })}
+                      </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{exam.uploaded_by__username}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm">
                         <div className="flex space-x-3">
@@ -500,7 +438,169 @@ ray-400 disabled:cursor-not-allowed transition-colors"
         </div>
       </div>
       
+      {/* Upload Modal */}
+      {showUploadModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-6 py-4 flex justify-between items-center rounded-t-xl">
+              <h2 className="text-xl font-semibold flex items-center">
+                <FaUpload className="mr-2" />
+                Upload Exam Results
+              </h2>
+              <button
+                onClick={() => setShowUploadModal(false)}
+                className="text-white hover:text-gray-200 transition-colors text-2xl"
+              >
+                ×
+              </button>
+            </div>
+            
+            <form onSubmit={handleUpload} className="p-6">
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Course <span className="text-red-500">*</span>
+                  </label>
+                  <select 
+                    value={course} 
+                    onChange={(e) => setCourse(e.target.value)}
+                    className="input-field"
+                    required
+                  >
+                    <option value="btech">B.Tech</option>
+                    <option value="mtech">M.Tech</option>
+                  </select>
+                </div>
 
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Academic Year <span className="text-red-500">*</span>
+                  </label>
+                  <select 
+                    value={year} 
+                    onChange={(e) => setYear(e.target.value)}
+                    className="input-field"
+                    required
+                  >
+                    <option value="">Select Year</option>
+                    {getYearOptions().map(option => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Semester <span className="text-red-500">*</span>
+                  </label>
+                  <select 
+                    value={semester} 
+                    onChange={(e) => setSemester(e.target.value)}
+                    className="input-field"
+                    required
+                  >
+                    <option value="">Select Semester</option>
+                    <option value="1">I Semester</option>
+                    <option value="2">II Semester</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Result Type <span className="text-red-500">*</span>
+                  </label>
+                  <select 
+                    value={resultType} 
+                    onChange={(e) => setResultType(e.target.value)}
+                    className="input-field"
+                    required
+                  >
+                    <option value="">Select Result Type</option>
+                    <option value="regular">Regular</option>
+                    <option value="supplementary">Supplementary</option>
+                    <option value="both">Regular and Supplementary</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Exam Held Month & Year (Optional)
+                  </label>
+                  <div className="grid grid-cols-2 gap-4">
+                    <select 
+                      value={examMonth}
+                      onChange={(e) => setExamMonth(e.target.value)}
+                      className="input-field"
+                    >
+                      <option value="">Select Month</option>
+                      <option value="01">January</option>
+                      <option value="02">February</option>
+                      <option value="03">March</option>
+                      <option value="04">April</option>
+                      <option value="05">May</option>
+                      <option value="06">June</option>
+                      <option value="07">July</option>
+                      <option value="08">August</option>
+                      <option value="09">September</option>
+                      <option value="10">October</option>
+                      <option value="11">November</option>
+                      <option value="12">December</option>
+                    </select>
+                    <input 
+                      type="number"
+                      value={examYear}
+                      onChange={(e) => setExamYear(e.target.value)}
+                      placeholder="Year (e.g., 2026)"
+                      min="2000"
+                      max={new Date().getFullYear()}
+                      className="input-field"
+                    />
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Optional: Select month and year for exam name generation
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Excel File <span className="text-red-500">*</span>
+                  </label>
+                  <input 
+                    type="file" 
+                    onChange={handleFileChange} 
+                    accept=".xlsx,.xls,.csv" 
+                    className="input-field"
+                    required
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Excel file should contain: Roll Number, Student Name, and Subject details
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex gap-3 mt-6">
+                <button 
+                  type="submit" 
+                  disabled={uploadLoading || !file}
+                  className="flex-1 bg-blue-600 text-white py-2.5 px-4 rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors font-medium"
+                >
+                  {uploadLoading ? "Uploading..." : "Upload Results"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowUploadModal(false)}
+                  disabled={uploadLoading}
+                  className="px-6 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Statistics Modal */}
       {showStatsModal && statistics && (
         <StatisticsModal 
           statistics={statistics} 
@@ -508,7 +608,7 @@ ray-400 disabled:cursor-not-allowed transition-colors"
         />
       )}
       
-      <ChangePasswordModal isOpen={showPasswordModal} onClose={() => setShowPasswordModal(false)} />
+      {/* Search Student Modal */}
       <SearchStudentModal 
         isOpen={showSearchModal} 
         onClose={() => setShowSearchModal(false)} 
@@ -516,11 +616,11 @@ ray-400 disabled:cursor-not-allowed transition-colors"
       />
       
       {/* Toast Notification */}
-      {uploadMessage.text && (
+      {toast.show && (
         <Toast 
-          message={uploadMessage.text}
-          type={uploadMessage.type}
-          onClose={() => setUploadMessage({ type: '', text: '' })}
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast({ show: false, message: '', type: '' })}
         />
       )}
     </div>

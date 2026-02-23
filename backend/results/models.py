@@ -138,6 +138,7 @@ class Subject(models.Model):
     result = models.ForeignKey(Result, on_delete=models.CASCADE, related_name='subjects')
     subject_code = models.CharField(max_length=50)
     subject_name = models.CharField(max_length=200)
+    subject_type = models.CharField(max_length=20, default='Theory', choices=[('Theory', 'Theory'), ('Lab', 'Lab')], help_text='Subject type')
     credits = models.IntegerField(null=True, blank=True, help_text='Subject credits')
     internal_marks = models.IntegerField(null=True, blank=True)
     external_marks = models.IntegerField(null=True, blank=True)
@@ -280,3 +281,105 @@ class Circular(models.Model):
         """Check if attachment is image"""
         ext = self.get_file_extension()
         return ext in ["jpg", "jpeg", "png", "gif"]
+
+
+# ==================== HALL TICKET MODELS ====================
+
+class Exam(models.Model):
+    """Model for exam definitions"""
+    exam_name = models.CharField(max_length=300, help_text='Full exam name')
+    year = models.CharField(max_length=10, help_text='Year (I, II, III, IV)')
+    semester = models.CharField(max_length=10, help_text='Semester (I, II)')
+    course = models.CharField(max_length=50, default='B.Tech', help_text='Course (B.Tech, M.Tech)')
+    branch = models.CharField(max_length=100, blank=True, help_text='Branch/Department (optional)')
+    exam_center = models.CharField(max_length=200, default='Main Campus', help_text='Examination center')
+    exam_start_time = models.TimeField(default='09:00', help_text='Exam start time')
+    exam_end_time = models.TimeField(default='12:00', help_text='Exam end time')
+    instructions = models.TextField(blank=True, help_text='General instructions')
+    is_active = models.BooleanField(default=True, help_text='Is exam active')
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='created_exams')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        db_table = 'hall_ticket_exams'
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return self.exam_name
+
+
+class ExamSubject(models.Model):
+    """Model for exam subjects"""
+    exam = models.ForeignKey(Exam, on_delete=models.CASCADE, related_name='subjects')
+    subject_code = models.CharField(max_length=50, help_text='Subject code')
+    subject_name = models.CharField(max_length=200, help_text='Subject name')
+    subject_type = models.CharField(max_length=20, default='Theory', choices=[('Theory', 'Theory'), ('Lab', 'Lab')], help_text='Subject type')
+    exam_date = models.DateField(null=True, blank=True, help_text='Date of examination (required for Theory, optional for Lab)')
+    exam_time = models.TimeField(default='10:00', help_text='Exam start time')
+    duration = models.CharField(max_length=50, default='3 hours', help_text='Exam duration')
+    order = models.IntegerField(default=1, help_text='Display order in hall ticket')
+    
+    class Meta:
+        db_table = 'hall_ticket_exam_subjects'
+        ordering = ['exam', 'order', 'exam_date']
+        unique_together = ['exam', 'subject_code']
+    
+    def __str__(self):
+        return f"{self.subject_code} - {self.subject_name}"
+
+
+class StudentPhoto(models.Model):
+    """Model for student photos for hall tickets"""
+    student = models.OneToOneField(User, on_delete=models.CASCADE, primary_key=True, related_name='hall_ticket_photo')
+    roll_number = models.CharField(max_length=50, unique=True, db_index=True)
+    photo = models.ImageField(upload_to='hall_ticket_photos/', help_text='Student photograph')
+    consent_given = models.BooleanField(default=False, help_text='Consent to use photo')
+    consent_text = models.TextField(default='I hereby give consent to use my photograph for hall ticket generation')
+    consent_date = models.DateTimeField(null=True, blank=True)
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        db_table = 'hall_ticket_student_photos'
+    
+    def __str__(self):
+        return f"Photo - {self.roll_number}"
+
+
+class ExamEnrollment(models.Model):
+    """Model for student exam enrollments"""
+    exam = models.ForeignKey(Exam, on_delete=models.CASCADE, related_name='enrollments')
+    student = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True, related_name='exam_enrollments')
+    roll_number = models.CharField(max_length=50, db_index=True)
+    student_name = models.CharField(max_length=200)
+    branch = models.CharField(max_length=100, blank=True)
+    enrolled_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        db_table = 'hall_ticket_enrollments'
+        unique_together = ['exam', 'roll_number']
+    
+    def __str__(self):
+        return f"{self.roll_number} - {self.exam.exam_name}"
+
+
+class HallTicket(models.Model):
+    """Model for generated hall tickets"""
+    enrollment = models.OneToOneField(ExamEnrollment, on_delete=models.CASCADE, related_name='hall_ticket')
+    exam = models.ForeignKey(Exam, on_delete=models.CASCADE, related_name='hall_tickets')
+    student = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True, related_name='hall_tickets')
+    hall_ticket_number = models.CharField(max_length=50, unique=True, db_index=True)
+    qr_code_data = models.CharField(max_length=500, default='')
+    status = models.CharField(max_length=20, default='generated')
+    download_count = models.IntegerField(default=0)
+    generated_at = models.DateTimeField(auto_now_add=True)
+    downloaded_at = models.DateTimeField(null=True, blank=True)
+    generated_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='generated_hall_tickets')
+    pdf_file = models.FileField(upload_to='hall_tickets/%Y/%m/', null=True, blank=True)
+    
+    class Meta:
+        db_table = 'hall_tickets'
+    
+    def __str__(self):
+        return f"Hall Ticket - {self.hall_ticket_number}"

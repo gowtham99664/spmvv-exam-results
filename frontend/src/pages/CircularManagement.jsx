@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import circularService from '../services/circularService';
 import Navbar from '../components/Navbar';
 import Toast from '../components/Toast';
+import useEscapeKey from '../hooks/useEscapeKey';
 import { FaPlus, FaEdit, FaTrash, FaFileAlt, FaFilePdf, FaFileImage, FaEye, FaEyeSlash } from 'react-icons/fa';
 
 const CircularManagement = () => {
@@ -26,6 +27,7 @@ const CircularManagement = () => {
   });
 
   const [filterCategory, setFilterCategory] = useState('all');
+  const [downloading, setDownloading] = useState(null);
   const [filterActive, setFilterActive] = useState('all');
 
   const categories = [
@@ -96,6 +98,9 @@ const CircularManagement = () => {
     setShowModal(false);
     setEditingCircular(null);
   };
+
+  // ESC key handler to close modal
+  useEscapeKey(handleCloseModal, showModal);
 
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -170,6 +175,20 @@ const CircularManagement = () => {
     return <FaFileAlt />;
   };
 
+
+  const handleDownloadAttachment = async (circular) => {
+    if (!circular.attachment_name) return;
+    setDownloading(circular.id);
+    try {
+      await circularService.downloadCircularAttachment(circular.id, circular.attachment_name);
+    } catch (error) {
+      console.error('Download failed:', error);
+      showToast('Failed to download attachment', 'error');
+    } finally {
+      setDownloading(null);
+    }
+  };
+
   const getCategoryBadge = (category) => {
     const colors = {
       general: 'bg-gray-100 text-gray-800',
@@ -218,7 +237,7 @@ const CircularManagement = () => {
         </div>
         {loading && !showModal ? (<div className="text-center py-8">Loading circulars...</div>) : filteredCirculars.length === 0 ? (<div className="bg-white p-8 rounded-lg shadow text-center text-gray-500">No circulars found</div>) : (<div className="grid gap-4">{filteredCirculars.map(circular => (<div key={circular.id} className="bg-white p-6 rounded-lg shadow hover:shadow-md transition"><div className="flex justify-between items-start"><div className="flex-1"><div className="flex items-center gap-3 mb-2"><h3 className="text-xl font-semibold text-gray-900">{circular.title}</h3><span className={`px-3 py-1 rounded-full text-xs font-medium ${getCategoryBadge(circular.category)}`}>{circular.category.charAt(0).toUpperCase() + circular.category.slice(1)}</span>{circular.is_active ? (<span className="flex items-center gap-1 text-green-600 text-sm"><FaEye /> Active</span>) : (<span className="flex items-center gap-1 text-gray-400 text-sm"><FaEyeSlash /> Inactive</span>)}</div><p className="text-gray-600 mb-3">{circular.description}</p><div className="flex gap-4 text-sm text-gray-500"><span>Created by: {circular.created_by_name}</span><span>Date: {circular.created_at}</span>{circular.target_year && <span>Year: {circular.target_year}</span>}{circular.target_branch && <span>Branch: {circular.target_branch}</span>}</div>{circular.file_url && (<div className="mt-3"><a href={circular.file_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-indigo-600 hover:text-indigo-800">{getFileIcon(circular.file_url)}<span>View Attachment ({circular.file_extension})</span></a></div>)}</div><div className="flex gap-2"><button onClick={() => handleOpenModal(circular)} className="text-blue-600 hover:text-blue-800 p-2" title="Edit"><FaEdit size={20} /></button><button onClick={() => handleDelete(circular.id)} className="text-red-600 hover:text-red-800 p-2" title="Delete"><FaTrash size={20} /></button></div></div></div>))}</div>)}
       </div>
-      {showModal && (<div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"><div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto"><div className="p-6"><h2 className="text-2xl font-bold mb-4">{editingCircular ? 'Edit Circular' : 'Create New Circular'}</h2><form onSubmit={handleSubmit}><div className="space-y-4"><div><label className="block text-sm font-medium text-gray-700 mb-1">Title <span className="text-red-500">*</span></label><input type="text" name="title" value={formData.title} onChange={handleInputChange} required maxLength={300} className="w-full border rounded-lg px-3 py-2" /></div><div><label className="block text-sm font-medium text-gray-700 mb-1">Category <span className="text-red-500">*</span></label><select name="category" value={formData.category} onChange={handleInputChange} required className="w-full border rounded-lg px-3 py-2">{categories.map(cat => (<option key={cat.value} value={cat.value}>{cat.label}</option>))}</select></div><div><label className="block text-sm font-medium text-gray-700 mb-1">Description <span className="text-red-500">*</span></label><textarea name="description" value={formData.description} onChange={handleInputChange} required rows={4} className="w-full border rounded-lg px-3 py-2" /></div><div className="grid grid-cols-2 gap-4"><div><label className="block text-sm font-medium text-gray-700 mb-1">Target Year (Optional)</label><select name="target_year" value={formData.target_year} onChange={handleInputChange} className="w-full border rounded-lg px-3 py-2"><option value="">All Years</option><option value="1">I Year</option><option value="2">II Year</option><option value="3">III Year</option><option value="4">IV Year</option></select></div><div><label className="block text-sm font-medium text-gray-700 mb-1">Target Branch (Optional)<span className="text-gray-500 text-xs ml-2">(e.g., CSE, ECE, EEE, MECH)</span></label><input type="text" name="target_branch" value={formData.target_branch} onChange={handleInputChange} placeholder="Enter branch code (e.g., CSE, ECE)" className="w-full border rounded-lg px-3 py-2" maxLength={20} /></div></div><div><label className="block text-sm font-medium text-gray-700 mb-1">Attachment {!editingCircular && <span className="text-red-500">*</span>}<span className="text-gray-500 text-xs ml-2">(PDF, JPG, JPEG, PNG - Max 10MB)</span></label><input type="file" onChange={handleFileChange} accept=".pdf,.jpg,.jpeg,.png" required={!editingCircular} className="w-full border rounded-lg px-3 py-2" />{editingCircular && editingCircular.file_url && (<p className="text-sm text-gray-500 mt-1">Current: {editingCircular.attachment_name} (Leave empty to keep current)</p>)}</div><div className="flex items-center"><input type="checkbox" name="is_active" checked={formData.is_active} onChange={handleInputChange} className="mr-2" id="is_active" /><label htmlFor="is_active" className="text-sm font-medium text-gray-700">Active (Students can see this circular)</label></div></div><div className="flex gap-3 mt-6"><button type="submit" disabled={loading} className="flex-1 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 disabled:opacity-50">{loading ? 'Saving...' : (editingCircular ? 'Update' : 'Create')}</button><button type="button" onClick={handleCloseModal} disabled={loading} className="flex-1 bg-gray-200 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-300 disabled:opacity-50">Cancel</button></div></form></div></div></div>)}
+      {showModal && (<div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"><div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto"><div className="p-6"><h2 className="text-2xl font-bold mb-4">{editingCircular ? 'Edit Circular' : 'Create New Circular'}</h2><form onSubmit={handleSubmit}><div className="space-y-4"><div><label className="block text-sm font-medium text-gray-700 mb-1">Title <span className="text-red-500">*</span></label><input type="text" name="title" value={formData.title} onChange={handleInputChange} required maxLength={300} className="w-full border rounded-lg px-3 py-2" /></div><div><label className="block text-sm font-medium text-gray-700 mb-1">Category <span className="text-red-500">*</span></label><select name="category" value={formData.category} onChange={handleInputChange} required className="w-full border rounded-lg px-3 py-2">{categories.map(cat => (<option key={cat.value} value={cat.value}>{cat.label}</option>))}</select></div><div><label className="block text-sm font-medium text-gray-700 mb-1">Description <span className="text-red-500">*</span></label><textarea name="description" value={formData.description} onChange={handleInputChange} required rows={4} className="w-full border rounded-lg px-3 py-2" /></div><div className="grid grid-cols-2 gap-4"><div><label className="block text-sm font-medium text-gray-700 mb-1">Target Year (Optional)</label><select name="target_year" value={formData.target_year} onChange={handleInputChange} className="w-full border rounded-lg px-3 py-2"><option value="">All Years</option><option value="1">I Year</option><option value="2">II Year</option><option value="3">III Year</option><option value="4">IV Year</option></select></div><div><label className="block text-sm font-medium text-gray-700 mb-1">Target Branch (Optional)</label><input type="text" name="target_branch" value={formData.target_branch} onChange={handleInputChange} placeholder="Enter branch code (e.g., CSE, ECE)" className="w-full border rounded-lg px-3 py-2" maxLength={20} /></div></div><div><label className="block text-sm font-medium text-gray-700 mb-1">Attachment {!editingCircular && <span className="text-red-500">*</span>}<span className="text-gray-500 text-xs ml-2">(PDF, JPG, JPEG, PNG - Max 10MB)</span></label><input type="file" onChange={handleFileChange} accept=".pdf,.jpg,.jpeg,.png" required={!editingCircular} className="w-full border rounded-lg px-3 py-2" />{editingCircular && editingCircular.file_url && (<p className="text-sm text-gray-500 mt-1">Current: {editingCircular.attachment_name} (Leave empty to keep current)</p>)}</div><div className="flex items-center"><input type="checkbox" name="is_active" checked={formData.is_active} onChange={handleInputChange} className="mr-2" id="is_active" /><label htmlFor="is_active" className="text-sm font-medium text-gray-700">Active (Students can see this circular)</label></div></div><div className="flex gap-3 mt-6"><button type="submit" disabled={loading} className="flex-1 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 disabled:opacity-50">{loading ? 'Saving...' : (editingCircular ? 'Update' : 'Create')}</button><button type="button" onClick={handleCloseModal} disabled={loading} className="flex-1 bg-gray-200 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-300 disabled:opacity-50">Cancel</button></div></form></div></div></div>)}
       {toast.show && (<Toast message={toast.message} type={toast.type} onClose={() => setToast({ show: false, message: '', type: '' })} />)}
     </div>
   );

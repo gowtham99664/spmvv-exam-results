@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { validatePassword } from '../utils/validation';
 import { FaTimes } from 'react-icons/fa';
+import useEscapeKey from '../hooks/useEscapeKey';
 
 const ChangePasswordModal = ({ isOpen, onClose }) => {
   const { changePassword } = useAuth();
@@ -13,6 +14,9 @@ const ChangePasswordModal = ({ isOpen, onClose }) => {
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
+
+  // ESC key handler
+  useEscapeKey(onClose, isOpen);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
