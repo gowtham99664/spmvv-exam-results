@@ -1041,7 +1041,7 @@ def delete_exam_results(request, exam_name):
     # Create audit log
     create_audit_log(
         request.user,
-        'DELETE_EXAM',
+        'result_delete_exam',
         f'Deleted exam: {exam_name} ({student_count} students, {count} total records)',
         request
     )

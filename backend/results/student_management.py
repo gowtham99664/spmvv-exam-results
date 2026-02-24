@@ -155,29 +155,57 @@ def update_subject_marks(request, subject_id):
         internal_marks = request.data.get("internal_marks")
         external_marks = request.data.get("external_marks")
         total_marks = request.data.get("total_marks")
-        subject_result = request.data.get("subject_result", "").lower()
-        grade = request.data.get("grade", "")
-        if subject_result not in ["pass", "fail", "absent"]:
-            return Response({"error": "Invalid subject_result. Must be: pass, fail, or absent"}, status=400)
+        grade = request.data.get("grade", "").strip().upper()
+
+        valid_grades = ["O", "A", "B", "C", "D", "F", "AB"]  # AB = absent
+        if grade and grade not in valid_grades:
+            return Response({"error": f"Invalid grade. Must be one of: {', '.join(valid_grades)}"}, status=400)
+
         if internal_marks is not None:
             subject.internal_marks = internal_marks
         if external_marks is not None:
             subject.external_marks = external_marks
         if total_marks is not None:
             subject.total_marks = total_marks
-        if subject.subject_result.lower() == "fail" and subject_result == "pass":
+
+        # Track attempts: if subject was previously failed (grade F) and is now passing
+        prev_grade = (subject.grade or "").strip().upper()
+        if prev_grade == "F" and grade and grade != "F":
             subject.attempts += 1
-        subject.subject_result = subject_result
+
         subject.grade = grade
         subject.save()
+
         result = subject.result
         all_subjects = result.subjects.all()
-        failed_count = all_subjects.filter(subject_result__iexact="fail").count()
+        # Determine pass/fail: any subject with grade F means overall fail
+        failed_count = all_subjects.filter(grade__iexact="F").count()
         if failed_count == 0:
             result.overall_result = "Pass"
             result.save()
-        AuditLog.objects.create(user=request.user, action="result_edit", details=f"Updated marks for {subject.subject_code} - {result.roll_number} Year {result.year} Sem {result.semester}", ip_address=get_client_ip(request))
-        return Response({"message": "Subject marks updated successfully", "subject": {"id": subject.id, "subject_code": subject.subject_code, "subject_name": subject.subject_name, "internal_marks": subject.internal_marks, "external_marks": subject.external_marks, "total_marks": subject.total_marks, "subject_result": subject.get_subject_result_display(), "grade": subject.grade, "attempts": subject.attempts}, "overall_result_updated": failed_count == 0})
+
+        AuditLog.objects.create(
+            user=request.user,
+            action="result_edit",
+            details=f"Updated marks for {subject.subject_code} - {result.roll_number} Year {result.year} Sem {result.semester}",
+            ip_address=get_client_ip(request)
+        )
+        subject_result_display = "Fail" if grade == "F" else ("Absent" if grade == "AB" else "Pass")
+        return Response({
+            "message": "Subject marks updated successfully",
+            "subject": {
+                "id": subject.id,
+                "subject_code": subject.subject_code,
+                "subject_name": subject.subject_name,
+                "internal_marks": subject.internal_marks,
+                "external_marks": subject.external_marks,
+                "total_marks": subject.total_marks,
+                "subject_result": subject_result_display,
+                "grade": subject.grade,
+                "attempts": subject.attempts
+            },
+            "overall_result_updated": failed_count == 0
+        })
     except Subject.DoesNotExist:
         return Response({"error": "Subject not found"}, status=404)
     except Exception as e:

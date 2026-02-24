@@ -165,7 +165,13 @@ class AuditLog(models.Model):
         ('result_view', 'Result View'),
         ('result_edit', 'Result Edit'),
         ('result_delete', 'Result Delete'),
+        ('result_delete_exam', 'Result Delete Exam'),
         ('user_registration', 'User Registration'),
+        ('consolidated_result_view', 'Consolidated Result View'),
+        ('circular_created', 'Circular Created'),
+        ('circular_updated', 'Circular Updated'),
+        ('circular_deleted', 'Circular Deleted'),
+        ('profile_updated', 'Profile Updated'),
     ]
     
     user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)

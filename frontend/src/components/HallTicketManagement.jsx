@@ -22,6 +22,8 @@ const HallTicketManagement = () => {
     month: 'January',       // Month dropdown
     year_of_exam: new Date().getFullYear().toString(), // Text input
     exam_center: 'Main Campus',
+    exam_start_time: '09:00',
+    exam_end_time: '12:00',
   });
 
   // Subjects array - dynamic addition (single row per subject)
@@ -94,6 +96,8 @@ const HallTicketManagement = () => {
       month: 'January',
       year_of_exam: new Date().getFullYear().toString(),
       exam_center: 'Main Campus',
+      exam_start_time: '09:00',
+      exam_end_time: '12:00',
     });
     setSubjects([
       {
@@ -144,6 +148,11 @@ const HallTicketManagement = () => {
     if (!examForm.year || !examForm.semester || !examForm.course || 
         !examForm.branch || !examForm.exam_type || !examForm.month || !examForm.year_of_exam) {
       showToast('Please fill all exam details', 'error');
+      return false;
+    }
+
+    if (!examForm.exam_start_time || !examForm.exam_end_time) {
+      showToast('Please set the exam start and end time', 'error');
       return false;
     }
 

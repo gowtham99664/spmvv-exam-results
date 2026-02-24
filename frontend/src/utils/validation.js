@@ -38,24 +38,36 @@ export const validateHallTicket = (hallTicket) => {
 // File validation for Excel uploads
 export const validateExcelFile = (file) => {
   const maxSize = 5 * 1024 * 1024; // 5MB
+  const allowedExtensions = ['.xlsx', '.xls', '.csv'];
+  // MIME types vary by browser/OS - Windows often reports empty or octet-stream for xlsx
   const allowedTypes = [
     'application/vnd.ms-excel',
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    'text/csv'
+    'text/csv',
+    'application/octet-stream',
+    ''
   ];
-  
+
   if (!file) {
     return { valid: false, message: 'Please select a file' };
   }
-  
-  if (!allowedTypes.includes(file.type)) {
-    return { valid: false, message: 'Please upload a valid Excel or CSV file (.xlsx, .xls, .csv)' };
+
+  // Extension check is more reliable than MIME type (especially on Windows)
+  const fileName = file.name.toLowerCase();
+  const hasValidExtension = allowedExtensions.some(ext => fileName.endsWith(ext));
+  if (!hasValidExtension) {
+    return { valid: false, message: 'Please upload a valid Excel file (.xlsx, .xls, or .csv)' };
   }
-  
+
+  // Only reject if MIME type is known and explicitly not allowed
+  if (file.type && !allowedTypes.includes(file.type)) {
+    return { valid: false, message: 'Please upload a valid Excel file (.xlsx, .xls, or .csv)' };
+  }
+
   if (file.size > maxSize) {
     return { valid: false, message: 'File size must be less than 5MB' };
   }
-  
+
   return { valid: true, message: '' };
 };
 
