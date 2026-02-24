@@ -90,6 +90,7 @@ def get_student_history(request, roll_number):
                 'total_marks': result.total_marks,
                 'sgpa': float(result.sgpa) if result.sgpa else None,
                 'overall_result': overall_result,
+                'overall_grade': result.overall_grade or '',
                 'total_subjects': total_subjects,
                 'pending_subjects': pending_subjects,
                 'num_attempts': num_attempts,

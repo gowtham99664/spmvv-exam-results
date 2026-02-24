@@ -172,6 +172,19 @@ class AuditLog(models.Model):
         ('circular_updated', 'Circular Updated'),
         ('circular_deleted', 'Circular Deleted'),
         ('profile_updated', 'Profile Updated'),
+        # Hall ticket audit actions
+        ('exam_created', 'Exam Created'),
+        ('exam_updated', 'Exam Updated'),
+        ('exam_deleted', 'Exam Deleted'),
+        ('subject_added', 'Subject Added'),
+        ('subject_updated', 'Subject Updated'),
+        ('subject_deleted', 'Subject Deleted'),
+        ('student_list_uploaded', 'Student List Uploaded'),
+        ('hall_tickets_generated', 'Hall Tickets Generated'),
+        ('hall_ticket_downloaded', 'Hall Ticket Downloaded'),
+        ('bulk_hall_tickets_downloaded', 'Bulk Hall Tickets Downloaded'),
+        ('photo_uploaded', 'Photo Uploaded'),
+        ('photo_updated', 'Photo Updated'),
     ]
     
     user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)

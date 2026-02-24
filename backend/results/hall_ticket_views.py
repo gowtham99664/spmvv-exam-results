@@ -12,6 +12,7 @@ import pandas as pd
 import os
 from io import BytesIO
 import zipfile
+import json
 
 from .models import (
     Exam, ExamSubject, ExamEnrollment, StudentPhoto, 
@@ -27,11 +28,13 @@ from .hall_ticket_pdf import HallTicketPDFGenerator
 def log_audit(user, action, details):
     """Helper function to log audit events"""
     try:
+        ip = details.get('ip') if isinstance(details, dict) else None
+        details_str = json.dumps(details) if isinstance(details, dict) else str(details)
         AuditLog.objects.create(
             user=user,
             action=action,
-            details=details,
-            ip_address=details.get('ip', 'unknown')
+            details=details_str,
+            ip_address=ip
         )
     except Exception as e:
         print(f"Audit log error: {str(e)}")
@@ -72,7 +75,7 @@ def manage_exams(request):
     
     elif request.method == 'POST':
         # Only admin can create exams
-        if not request.user.is_staff:
+        if request.user.role != "admin":
             return Response({'error': 'Only admin users can create exams'}, 
                           status=status.HTTP_403_FORBIDDEN)
         
@@ -83,7 +86,7 @@ def manage_exams(request):
         if serializer.is_valid():
             exam = serializer.save()
             
-            log_audit(request.user, 'EXAM_CREATED', {
+            log_audit(request.user, 'exam_created', {
                 'exam_id': exam.id,
                 'exam_name': exam.exam_name,
                 'ip': request.META.get('REMOTE_ADDR', 'unknown')
@@ -108,7 +111,7 @@ def exam_detail(request, exam_id):
         return Response(serializer.data, status=status.HTTP_200_OK)
     
     elif request.method == 'PUT':
-        if not request.user.is_staff:
+        if request.user.role != "admin":
             return Response({'error': 'Only admin users can update exams'}, 
                           status=status.HTTP_403_FORBIDDEN)
         
@@ -117,7 +120,7 @@ def exam_detail(request, exam_id):
         if serializer.is_valid():
             serializer.save()
             
-            log_audit(request.user, 'EXAM_UPDATED', {
+            log_audit(request.user, 'exam_updated', {
                 'exam_id': exam.id,
                 'exam_name': exam.exam_name,
                 'ip': request.META.get('REMOTE_ADDR', 'unknown')
@@ -127,14 +130,14 @@ def exam_detail(request, exam_id):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
     elif request.method == 'DELETE':
-        if not request.user.is_staff:
+        if request.user.role != "admin":
             return Response({'error': 'Only admin users can delete exams'}, 
                           status=status.HTTP_403_FORBIDDEN)
         
         exam_name = exam.exam_name
         exam.delete()
         
-        log_audit(request.user, 'EXAM_DELETED', {
+        log_audit(request.user, 'exam_deleted', {
             'exam_id': exam_id,
             'exam_name': exam_name,
             'ip': request.META.get('REMOTE_ADDR', 'unknown')
@@ -150,7 +153,7 @@ def exam_detail(request, exam_id):
 @permission_classes([IsAuthenticated])
 def add_exam_subject(request, exam_id):
     """Add a subject to an exam (admin only)"""
-    if not request.user.is_staff:
+    if request.user.role != "admin":
         return Response({'error': 'Only admin users can add subjects'}, 
                       status=status.HTTP_403_FORBIDDEN)
     
@@ -160,7 +163,7 @@ def add_exam_subject(request, exam_id):
     if serializer.is_valid():
         subject = serializer.save(exam=exam)
         
-        log_audit(request.user, 'SUBJECT_ADDED', {
+        log_audit(request.user, 'subject_added', {
             'exam_id': exam.id,
             'subject_id': subject.id,
             'subject_code': subject.subject_code,
@@ -175,7 +178,7 @@ def add_exam_subject(request, exam_id):
 @permission_classes([IsAuthenticated])
 def update_exam_subject(request, subject_id):
     """Update a subject (admin only)"""
-    if not request.user.is_staff:
+    if request.user.role != "admin":
         return Response({'error': 'Only admin users can update subjects'}, 
                       status=status.HTTP_403_FORBIDDEN)
     
@@ -185,7 +188,7 @@ def update_exam_subject(request, subject_id):
     if serializer.is_valid():
         serializer.save()
         
-        log_audit(request.user, 'SUBJECT_UPDATED', {
+        log_audit(request.user, 'subject_updated', {
             'subject_id': subject.id,
             'subject_code': subject.subject_code,
             'ip': request.META.get('REMOTE_ADDR', 'unknown')
@@ -199,7 +202,7 @@ def update_exam_subject(request, subject_id):
 @permission_classes([IsAuthenticated])
 def delete_exam_subject(request, subject_id):
     """Delete a subject (admin only)"""
-    if not request.user.is_staff:
+    if request.user.role != "admin":
         return Response({'error': 'Only admin users can delete subjects'}, 
                       status=status.HTTP_403_FORBIDDEN)
     
@@ -207,7 +210,7 @@ def delete_exam_subject(request, subject_id):
     subject_code = subject.subject_code
     subject.delete()
     
-    log_audit(request.user, 'SUBJECT_DELETED', {
+    log_audit(request.user, 'subject_deleted', {
         'subject_id': subject_id,
         'subject_code': subject_code,
         'ip': request.META.get('REMOTE_ADDR', 'unknown')
@@ -230,9 +233,9 @@ def upload_student_list(request, exam_id):
     logger.info(f'Upload student list called for exam_id: {exam_id}')
     logger.info(f'request.FILES keys: {list(request.FILES.keys())}')
     logger.info(f'request.user: {request.user}')
-    logger.info(f'request.user.is_staff: {request.user.is_staff}')
+    logger.info(f'request.user.role == "admin": {request.user.role == "admin"}')
     
-    if not request.user.is_staff:
+    if request.user.role != "admin":
         logger.warning(f'Non-staff user {request.user} attempted to upload student list')
         return Response({'error': 'Only admin users can upload student lists'}, 
                       status=status.HTTP_403_FORBIDDEN)
@@ -292,7 +295,7 @@ def upload_student_list(request, exam_id):
                 )
                 created_count += 1
         
-        log_audit(request.user, 'STUDENT_LIST_UPLOADED', {
+        log_audit(request.user, 'student_list_uploaded', {
             'exam_id': exam.id,
             'created_count': created_count,
             'skipped_count': skipped_count,
@@ -358,7 +361,7 @@ def upload_student_photo(request):
         }
     )
     
-    log_audit(request.user, 'PHOTO_UPLOADED' if created else 'PHOTO_UPDATED', {
+    log_audit(request.user, 'photo_uploaded' if created else 'photo_updated', {
         'roll_number': user.roll_number,
         'ip': request.META.get('REMOTE_ADDR', 'unknown')
     })
@@ -389,7 +392,7 @@ def get_student_photo(request):
 @permission_classes([IsAuthenticated])
 def generate_hall_tickets(request, exam_id):
     """Generate hall tickets for all enrolled students (admin only)"""
-    if not request.user.is_staff:
+    if request.user.role != "admin":
         return Response({'error': 'Only admin users can generate hall tickets'}, 
                       status=status.HTTP_403_FORBIDDEN)
     
@@ -431,7 +434,7 @@ def generate_hall_tickets(request, exam_id):
             
             generated_count += 1
     
-    log_audit(request.user, 'HALL_TICKETS_GENERATED', {
+    log_audit(request.user, 'hall_tickets_generated', {
         'exam_id': exam.id,
         'generated_count': generated_count,
         'skipped_count': skipped_count,
@@ -464,7 +467,7 @@ def list_hall_tickets(request, exam_id):
 @permission_classes([IsAuthenticated])
 def download_hall_ticket(request, ticket_id):
     """Download hall ticket PDF (admin only) - generates PDF in-memory without storing"""
-    if not request.user.is_staff:
+    if request.user.role != "admin":
         return Response({'error': 'Only admin users can download hall tickets'}, 
                       status=status.HTTP_403_FORBIDDEN)
     
@@ -504,10 +507,11 @@ def download_hall_ticket(request, ticket_id):
         'student_photo_path': photo_path,
         'qr_code_data': hall_ticket.qr_code_data,
         'subjects': [{
-            'exam_date': subject.exam_date.strftime('%d-%b-%Y') if subject.exam_date else 'TBA',
+            'exam_date': subject.exam_date.strftime('%Y-%m-%d') if subject.exam_date else None,
             'exam_time': subject.exam_time.strftime('%I:%M %p') if subject.exam_time else '10:00 AM',
             'subject_code': subject.subject_code,
             'subject_name': subject.subject_name,
+            'subject_type': subject.subject_type,
         } for subject in subjects]
     }]
     
@@ -529,7 +533,7 @@ def download_hall_ticket(request, ticket_id):
     hall_ticket.downloaded_at = timezone.now()
     hall_ticket.save()
 
-    log_audit(request.user, 'HALL_TICKET_DOWNLOADED', {
+    log_audit(request.user, 'hall_ticket_downloaded', {
         'ticket_id': hall_ticket.id,
         'hall_ticket_number': hall_ticket.hall_ticket_number,
         'ip': request.META.get('REMOTE_ADDR', 'unknown')
@@ -602,7 +606,7 @@ def download_all_hall_tickets(request, exam_id):
     import tempfile
     import os
     
-    if not request.user.is_staff:
+    if request.user.role != "admin":
         return Response({'error': 'Only admin users can download hall tickets'}, 
                       status=status.HTTP_403_FORBIDDEN)
     
@@ -695,7 +699,7 @@ def download_all_hall_tickets(request, exam_id):
     response['Content-Disposition'] = f'attachment; filename="{pdf_filename}"'
     
     # Log audit
-    log_audit(request.user, 'BULK_HALL_TICKETS_DOWNLOADED', {
+    log_audit(request.user, 'bulk_hall_tickets_downloaded', {
         'exam_id': exam_id,
         'exam_name': exam.exam_name,
         'ticket_count': hall_tickets.count(),

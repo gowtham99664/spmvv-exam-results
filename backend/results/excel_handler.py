@@ -224,7 +224,7 @@ class ExcelValidator:
         errors = []
         
         valid_result_types = ['regular', 'supplementary', 'both']
-        valid_grades = ['O', 'A', 'B', 'C', 'D', 'F']  # Uppercase for comparison, simplified
+        valid_grades = ['O', 'A', 'B', 'C', 'D', 'F', 'AB']  # Uppercase for comparison, simplified
         valid_branches = ['cse', 'ece', 'eee', 'mech', 'civil', 'it', 'chemical', 'biotechnology', 'mba', 'mca']
         
         for row in data:
@@ -234,8 +234,7 @@ class ExcelValidator:
             branch = row.get('Branch', '')
             if not branch:
                 errors.append(f"Row {row_num}: Branch is required")
-            elif branch not in valid_branches:
-                errors.append(f"Row {row_num}: Invalid Branch '{branch}'. Must be one of: {', '.join([b.upper() for b in valid_branches])}")
+            # Note: any branch string is accepted - not restricted to a predefined list
             
             # Validate Result Type (NEW)
             result_type = row.get('Result Type', '')
