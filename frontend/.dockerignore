@@ -25,3 +25,6 @@ build/
 
 # Misc
 .DS_Store
+
+# node_modules should never be copied - install inside container
+node_modules/
