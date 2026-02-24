@@ -10,6 +10,7 @@ import SearchStudentModal from '../components/SearchStudentModal';
 import Toast from '../components/Toast';
 import SemesterSummaryTable from '../components/SemesterSummaryTable';
 import { validateExcelFile } from '../utils/validation';
+import useEscapeKey from '../hooks/useEscapeKey';
 import { 
   FaUpload, FaUsers, FaBullhorn, FaIdCard, FaSearch, 
   FaCalendar, FaTrash, FaChartBar, FaDownload, FaFileExcel 
@@ -59,6 +60,9 @@ const AdminDashboard = () => {
       setYear('');
     }
   }, [course]);
+
+  // ESC key handler to close upload modal
+  useEscapeKey(() => setShowUploadModal(false), showUploadModal);
 
   const fetchDashboardStats = async () => {
     try {

@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FaUsers, FaEdit, FaTrash, FaKey, FaPlus, FaTimes, FaArrowLeft, FaSearch, FaCheckSquare, FaSquare } from 'react-icons/fa';
+import { FaUsers, FaEdit, FaTrash, FaKey, FaPlus, FaTimes, FaSearch, FaCheckSquare, FaSquare } from 'react-icons/fa';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
+import Navbar from '../components/Navbar';
 import Toast from '../components/Toast';
 import useEscapeKey from '../hooks/useEscapeKey';
 
@@ -326,25 +327,19 @@ const UserManagement = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      <div className="max-w-7xl mx-auto">
-        <div className="bg-white rounded-lg shadow-md p-6">
-          {/* Header with Back Button */}
+    <div className="min-h-screen bg-gray-50">
+      <Navbar />
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-900">User Management</h1>
+          <p className="text-gray-600 mt-2">Manage user accounts and permissions</p>
+        </div>
+
+        {/* Action Bar */}
+        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
           <div className="flex justify-between items-center mb-6">
-            <div className="flex items-center space-x-4">
-              <button
-                onClick={() => navigate('/admin/dashboard')}
-                className="flex items-center space-x-2 bg-gray-100 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200 transition-colors"
-                title="Back to Dashboard"
-              >
-                <FaArrowLeft />
-                <span>Back</span>
-              </button>
-              <div className="flex items-center space-x-3">
-                <FaUsers className="text-3xl text-blue-600" />
-                <h1 className="text-3xl font-bold text-gray-800">User Management</h1>
-              </div>
-            </div>
+            <h2 className="text-xl font-bold text-gray-900">Users</h2>
             <button
               onClick={handleCreateUser}
               className="flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
