@@ -79,7 +79,7 @@ class HallTicketPDFGenerator:
         student_info_data.append([Paragraph('<b>Course / Branch:</b>', self.styles['FieldLabel']), Paragraph(course_branch, self.styles['FieldValue']), ''])
         year_sem = f"Year: {hall_ticket_data.get('year', '')} | Semester: {hall_ticket_data.get('semester', '')}"
         student_info_data.append([Paragraph('<b>Year / Semester:</b>', self.styles['FieldLabel']), Paragraph(year_sem, self.styles['FieldValue']), ''])
-        student_info_data.append([Paragraph('<b>Exam Center:</b>', self.styles['FieldLabel']), Paragraph(hall_ticket_data.get('exam_center', 'Main Campus'), self.styles['FieldValue']), ''])
+        student_info_data.append([Paragraph('<b>Exam Center:</b>', self.styles['FieldLabel']), Paragraph(hall_ticket_data.get('exam_center', 'SPMVV SOET, Tirupati'), self.styles['FieldValue']), ''])
         
         student_info_table = Table(student_info_data, colWidths=[1.5*inch, 3.5*inch, 1.5*inch])
         photo_path = hall_ticket_data.get('student_photo_path')

@@ -181,6 +181,9 @@ class ExcelValidator:
                     elif header == 'Total Marks':
                         # Handle total marks value
                         row_data[header] = int(value) if value is not None and value != '' else None
+                    elif header == 'SGPA':
+                        # Handle SGPA value
+                        row_data[header] = float(value) if value is not None and value != '' else None
                     # Subject fields
                     elif 'Subject' in header:
                         parts = header.split()
@@ -251,6 +254,13 @@ class ExcelValidator:
             total_marks = row.get('Total Marks', None)
             if total_marks is not None and not isinstance(total_marks, (int, float)):
                 errors.append(f"Row {row_num}: Total Marks must be a number")
+            
+            # Validate SGPA
+            sgpa = row.get('SGPA', None)
+            if sgpa is not None and not isinstance(sgpa, (int, float)):
+                errors.append(f"Row {row_num}: SGPA must be a number")
+            elif sgpa is not None and (sgpa < 0 or sgpa > 10):
+                errors.append(f"Row {row_num}: SGPA must be between 0 and 10")
             
             # Validate subjects
             subjects = row.get('subjects', [])

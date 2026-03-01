@@ -77,8 +77,9 @@ const Login = () => {
     <div className="min-h-screen bg-gradient-to-br from-primary-50 to-primary-100 flex items-center justify-center p-4">
       <div className="max-w-md w-full">
         <div className="text-center mb-8">
+          <img src="/logo.png" alt="SPMVV Logo" className="h-20 w-auto object-contain mx-auto mb-4" />
           <h1 className="text-3xl font-bold text-primary-800 mb-2">
-            SPMVV Exam Results
+            SPMVV SOET Exam Results
           </h1>
           <p className="text-gray-600">Sign in to view your results</p>
         </div>

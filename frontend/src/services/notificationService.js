@@ -17,7 +17,7 @@ export const notificationService = {
   },
 
   markAsRead: async (notificationId) => {
-    const response = await api.patch(`/notifications/${notificationId}/read/`);
+    const response = await api.put(`/notifications/${notificationId}/read/`);
     return response.data;
   },
 

@@ -11,7 +11,7 @@ function AppTest() {
       flexDirection: "column",
       gap: "20px"
     }}>
-      <h1 style={{ fontSize: "3rem", color: "#0284c7" }}>SPMVV Exam Results</h1>
+      <h1 style={{ fontSize: "3rem", color: "#0284c7" }}>SPMVV SOET Exam Results</h1>
       <p style={{ fontSize: "1.5rem", color: "#075985" }}>Application is loading successfully!</p>
       <div style={{
         padding: "20px",

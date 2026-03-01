@@ -689,20 +689,16 @@ def get_consolidated_results(request):
     
     # Sort by year and semester
     consolidated_results.sort(key=lambda x: (x['year'], x['semester']))
-
-    # Calculate CGPA: average of all semester SGPAs (only non-None values)
-    valid_sgpas = [sem["current_sgpa"] for sem in consolidated_results if sem["current_sgpa"] is not None]
-    cgpa = round(sum(valid_sgpas) / len(valid_sgpas), 2) if valid_sgpas else None
-
+    
     # Create audit log
-    create_audit_log(user, "consolidated_result_view",
+    create_audit_log(user, 'consolidated_result_view', 
                     f"Viewed consolidated results: {len(consolidated_results)} year/semester groups", request)
-
+    
     return Response({
-        "count": len(consolidated_results),
-        "consolidated_results": consolidated_results,
-        "cgpa": cgpa
+        'count': len(consolidated_results),
+        'consolidated_results': consolidated_results
     })
+
 
 
 
@@ -823,11 +819,14 @@ def get_combined_notifications(request):
     # Sort by created_at descending
     combined_items.sort(key=lambda x: x['created_at'], reverse=True)
     
+    # Get latest 3 for dashboard
+    latest_3 = combined_items[:3]
+    
     return Response({
-        'count': len(combined_items),
+        'count': len(latest_3),
         'total_unread_notifications': Notification.objects.filter(student=user, is_read=False).count(),
         'total_active_circulars': circulars.count(),
-        'items': combined_items
+        'items': latest_3
     })
 
     """Health check endpoint"""
@@ -1278,7 +1277,7 @@ def download_sample_template(request):
         ws = wb.active
         ws.title = "Results Template"
         
-        # Headers with Credits format (5 subjects, SGPA is auto-calculated)
+        # Headers with Credits and SGPA format (5 subjects)
         headers = [
             "Branch", "Result Type", "Roll Number", "Student Name",
             "Subject 1 Code", "Subject 1 Name", "Subject 1 Credits", "Subject 1 Internal", "Subject 1 External", 
@@ -1291,7 +1290,7 @@ def download_sample_template(request):
             "Subject 4 Total", "Subject 4 Grade",
             "Subject 5 Code", "Subject 5 Name", "Subject 5 Credits", "Subject 5 Internal", "Subject 5 External",
             "Subject 5 Total", "Subject 5 Grade",
-            "Total Marks"
+            "Total Marks", "SGPA"
         ]
         
         # Style header row
@@ -1315,7 +1314,7 @@ def download_sample_template(request):
             "CS103", "Databases", 3, 15, 50, 65, "B",
             "CS104", "Operating Systems", 4, 19, 68, 87, "A",
             "CS105", "Computer Networks", 3, 17, 62, 79, "A",
-            404
+            404, 8.17
         ]
         
         for col_num, value in enumerate(sample, start=1):
@@ -1328,7 +1327,7 @@ def download_sample_template(request):
         instructions = [
             ["SPMVV Exam Results Upload Template - Instructions"],
             [""],
-            ["IMPORTANT: SGPA is auto-calculated by the system from grades and credits"],
+            ["IMPORTANT: This template uses Credits-based SGPA system"],
             [""],
             ["Column Descriptions:"],
             [""],
@@ -1346,8 +1345,9 @@ def download_sample_template(request):
             ["  - Subject Total", "Total marks (Internal + External)"],
             ["  - Subject Grade", "Grade: O, A, B, C, D, or F"],
             [""],
-            ["Last column:"],
-            ["  - Total Marks", "Sum of all subject total marks (optional, auto-calculated by system)"],
+            ["Last two columns:"],
+            ["  - Total Marks", "Sum of all subject total marks"],
+            ["  - SGPA", "Semester Grade Point Average (auto-calculated)"],
             [""],
             ["Grade Point System:"],
             ["  O = 10 points"],
@@ -1373,7 +1373,7 @@ def download_sample_template(request):
             [""],
             ["Notes:"],
             ["  - You can add more subjects by repeating the subject columns pattern"],
-            ["  - All fields are required except Total Marks (auto-calculated by system)"],
+            ["  - All fields are required except Total Marks and SGPA (auto-calculated)"],
             ["  - Credits should be positive integers (typically 3 or 4)"],
             ["  - Grades must be valid: O, A, B, C, D, F (case-insensitive)"],
             ["  - Internal and External marks should match your marking scheme"],
@@ -1405,7 +1405,7 @@ def download_sample_template(request):
         instructions_ws.column_dimensions["B"].width = 60
         
         response = HttpResponse(content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-        response["Content-Disposition"] = "attachment; filename=SPMVV_Results_Template.xlsx"
+        response["Content-Disposition"] = "attachment; filename=SPMVV_Results_Template_Credits_SGPA.xlsx"
         wb.save(response)
         return response
     except Exception as e:

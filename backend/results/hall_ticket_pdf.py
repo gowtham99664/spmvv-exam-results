@@ -239,7 +239,7 @@ class HallTicketPDFGenerator:
             ],
             [
                 Paragraph("<b>Examination Centre:</b>", self.styles["FieldLabel"]),
-                Paragraph(ticket_data.get("exam_center", "Main Campus"), self.styles["FieldValue"]),
+                Paragraph(ticket_data.get("exam_center", "SPMVV SOET, Tirupati"), self.styles["FieldValue"]),
                 ""
             ],
             [
@@ -306,15 +306,16 @@ class HallTicketPDFGenerator:
         elements.append(Spacer(1, 0.12*inch))
         
         signature_data = [
-            ["_____________________", "_____________________", "_____________________"],
+            ["_____________________", "_____________________", "_____________________", "_____________________"],
             [
                 Paragraph("<b>Signature of Student</b>", self.styles["SignatureLabel"]),
                 Paragraph("<b>Signature of HOD</b>", self.styles["SignatureLabel"]),
-                Paragraph("<b>Controller of Exams</b>", self.styles["SignatureLabel"])
+                Paragraph("<b>Signature of CoE</b>", self.styles["SignatureLabel"]),
+                Paragraph("<b>Signature of Dean</b>", self.styles["SignatureLabel"])
             ]
         ]
         
-        signature_table = Table(signature_data, colWidths=[2.35*inch, 2.35*inch, 2.35*inch])
+        signature_table = Table(signature_data, colWidths=[1.76*inch, 1.76*inch, 1.76*inch, 1.76*inch])
         signature_table.setStyle(TableStyle([
             ("VALIGN", (0,0), (-1,-1), "BOTTOM"),
             ("ALIGN", (0,0), (-1,-1), "CENTER"),

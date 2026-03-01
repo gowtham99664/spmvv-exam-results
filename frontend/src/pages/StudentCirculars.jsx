@@ -31,6 +31,7 @@ const StudentCirculars = () => {
   }, [user, navigate]);
 
   const fetchNotifications = async () => {
+    localStorage.setItem('circulars_last_seen', new Date().toISOString());
     setLoading(true);
     try {
       // Get notifications from last 1 year using 'page' filter

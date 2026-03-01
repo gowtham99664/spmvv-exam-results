@@ -539,7 +539,7 @@ def download_hall_ticket(request, ticket_id):
         'ip': request.META.get('REMOTE_ADDR', 'unknown')
     })
 
-    exam_name_sanitized = re.sub(r'[^a-zA-Z0-9_-]', '_', exam.exam_name)
+    exam_name_sanitized = re.sub(r'[^a-zA-Z0-9_.-]', '_', exam.exam_name).strip('_')
     ht_number_sanitized = re.sub(r'[^a-zA-Z0-9_-]', '_', hall_ticket.hall_ticket_number)
     pdf_filename = exam_name_sanitized + '_' + ht_number_sanitized + '.pdf'
     response = HttpResponse(pdf_content, content_type='application/pdf')
@@ -694,8 +694,8 @@ def download_all_hall_tickets(request, exam_id):
     response = HttpResponse(pdf_content, content_type='application/pdf')
     # Create filename from exam name (sanitize for filesystem)
     import re
-    exam_name_sanitized = re.sub(r'[^a-zA-Z0-9_-]', '_', exam.exam_name)
-    pdf_filename = f"{exam_name_sanitized}.pdf"
+    exam_name_sanitized = re.sub(r'[^a-zA-Z0-9_.-]', '_', exam.exam_name).strip('_')
+    pdf_filename = f"{exam_name_sanitized}_Halltickets.pdf"
     response['Content-Disposition'] = f'attachment; filename="{pdf_filename}"'
     
     # Log audit

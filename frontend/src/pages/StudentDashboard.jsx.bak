@@ -11,7 +11,6 @@ import { FaGraduationCap, FaBell, FaBullhorn, FaChevronDown, FaChevronUp } from 
 
 const StudentDashboard = () => {
   const [consolidatedResults, setConsolidatedResults] = useState([]);
-  const [cgpa, setCgpa] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showPasswordModal, setShowPasswordModal] = useState(false);
@@ -66,7 +65,6 @@ const StudentDashboard = () => {
     try {
       const data = await resultsService.getConsolidatedResults();
       setConsolidatedResults(data.consolidated_results || []);
-      setCgpa(data.cgpa ?? null);
       const expanded = {};
       (data.consolidated_results || []).forEach((semResult) => {
         expanded[`${semResult.year}-${semResult.semester}`] = false;
@@ -82,11 +80,12 @@ const StudentDashboard = () => {
   const fetchNotifications = async () => {
     try {
       const data = await notificationService.getCombinedNotifications();
-      setNotifications(data.items || []);
-      setUnreadCount(data.total_unread_notifications || 0);
-      const lastSeen = localStorage.getItem('circulars_last_seen');
+      setNotifications(data.notifications || []);
+      setUnreadCount(data.unread_count || 0);
+      const now = new Date();
+      const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
       const newCirculars = (data.items || []).filter(item =>
-        item.type === 'circular' && (!lastSeen || new Date(item.created_at) > new Date(lastSeen))
+        item.type === 'circular' && new Date(item.created_at) > twentyFourHoursAgo
       );
       setHasNewCirculars(newCirculars.length > 0);
     } catch (err) {}
@@ -172,7 +171,7 @@ const StudentDashboard = () => {
         )}
 
         {/* Quick actions: only Circulars + Total Semesters */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
           <button onClick={() => navigate("/student/circulars")}
             className="card flex items-center space-x-4 hover:shadow-lg transition-shadow relative">
             <FaBullhorn className="text-3xl text-purple-600" />
@@ -191,13 +190,6 @@ const StudentDashboard = () => {
             <div className="text-left">
               <h3 className="font-semibold text-gray-900">Total Semesters</h3>
               <p className="text-2xl font-bold text-primary-600">{consolidatedResults.length}</p>
-            </div>
-          </div>
-          <div className="card flex items-center space-x-4">
-            <FaGraduationCap className="text-3xl text-yellow-600" />
-            <div className="text-left">
-              <h3 className="font-semibold text-gray-900">Overall CGPA</h3>
-              <p className="text-2xl font-bold text-yellow-600">{cgpa !== null ? Number(cgpa).toFixed(2) : 'N/A'}</p>
             </div>
           </div>
         </div>

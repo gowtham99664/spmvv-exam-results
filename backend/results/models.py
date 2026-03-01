@@ -311,7 +311,7 @@ class Exam(models.Model):
     semester = models.CharField(max_length=10, help_text='Semester (I, II)')
     course = models.CharField(max_length=50, default='B.Tech', help_text='Course (B.Tech, M.Tech)')
     branch = models.CharField(max_length=100, blank=True, help_text='Branch/Department (optional)')
-    exam_center = models.CharField(max_length=200, default='Main Campus', help_text='Examination center')
+    exam_center = models.CharField(max_length=200, default='SPMVV SOET, Tirupati', help_text='Examination center')
     exam_start_time = models.TimeField(default='09:00', help_text='Exam start time')
     exam_end_time = models.TimeField(default='12:00', help_text='Exam end time')
     instructions = models.TextField(blank=True, help_text='General instructions')
