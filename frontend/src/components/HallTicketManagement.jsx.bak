@@ -21,7 +21,7 @@ const HallTicketManagement = () => {
     exam_type: 'Regular',   // Regular, Supplementary, Regular/Supplementary
     month: 'January',       // Month dropdown
     year_of_exam: new Date().getFullYear().toString(), // Text input
-    exam_center: 'SPMVV, Tirupati',
+    exam_center: 'Main Campus',
     exam_start_time: '09:00',
     exam_end_time: '12:00',
   });
@@ -95,7 +95,7 @@ const HallTicketManagement = () => {
       exam_type: 'Regular',
       month: 'January',
       year_of_exam: new Date().getFullYear().toString(),
-      exam_center: 'SPMVV, Tirupati',
+      exam_center: 'Main Campus',
       exam_start_time: '09:00',
       exam_end_time: '12:00',
     });
@@ -267,7 +267,14 @@ const HallTicketManagement = () => {
   // Download sample template
   const downloadSampleTemplate = async () => {
     try {
-      await hallTicketService.downloadSampleTemplate();
+      const response = await hallTicketService.downloadSampleTemplate();
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', 'hall_ticket_student_template.xlsx');
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
       showToast('Sample template downloaded', 'success');
     } catch (error) {
       showToast('Error downloading template', 'error');

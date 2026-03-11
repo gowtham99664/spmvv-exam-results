@@ -239,7 +239,7 @@ class HallTicketPDFGenerator:
             ],
             [
                 Paragraph("<b>Examination Centre:</b>", self.styles["FieldLabel"]),
-                Paragraph(ticket_data.get("exam_center", "SPMVV SOET, Tirupati"), self.styles["FieldValue"]),
+                Paragraph(ticket_data.get("exam_center", "SPMVV, Tirupati"), self.styles["FieldValue"]),
                 ""
             ],
             [
@@ -311,7 +311,7 @@ class HallTicketPDFGenerator:
                 Paragraph("<b>Signature of Student</b>", self.styles["SignatureLabel"]),
                 Paragraph("<b>Signature of HOD</b>", self.styles["SignatureLabel"]),
                 Paragraph("<b>Signature of CoE</b>", self.styles["SignatureLabel"]),
-                Paragraph("<b>Signature of Dean</b>", self.styles["SignatureLabel"])
+                Paragraph("<b>Signature of Director</b>", self.styles["SignatureLabel"])
             ]
         ]
         
