@@ -25,7 +25,6 @@ const Login = () => {
 
   const validateForm = () => {
     const newErrors = {};
-
     if (userType === 'student') {
       if (!formData.hallTicketNumber.trim()) {
         newErrors.hallTicketNumber = 'Hall Ticket Number is required';
@@ -35,28 +34,22 @@ const Login = () => {
         newErrors.username = 'Username is required';
       }
     }
-
     if (!formData.password) {
       newErrors.password = 'Password is required';
     }
-
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
     if (!validateForm()) return;
-
     setLoading(true);
     try {
       const credentials = userType === 'student'
         ? { hallTicketNumber: formData.hallTicketNumber, password: formData.password }
         : { username: formData.username, password: formData.password };
-
       const result = await login(credentials, userType);
-      
       if (result.success) {
         if (userType === 'admin') {
           navigate('/admin/dashboard');
@@ -73,44 +66,43 @@ const Login = () => {
     }
   };
 
+  const studentBtnClass = 'flex-1 py-2 px-4 rounded-md transition-colors ' + (userType === 'student' ? 'bg-primary-600 text-white' : 'text-gray-600 hover:text-gray-800');
+  const adminBtnClass = 'flex-1 py-2 px-4 rounded-md transition-colors ' + (userType === 'admin' ? 'bg-primary-600 text-white' : 'text-gray-600 hover:text-gray-800');
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary-50 to-primary-100 flex items-center justify-center p-4">
-      <div className="max-w-md w-full">
+    <div
+      className="min-h-screen flex items-center justify-center p-4"
+      style={{
+        backgroundImage: 'url(/banner_arch.jpg)',
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundRepeat: 'no-repeat',
+      }}
+    >
+      <div className="absolute inset-0 bg-black/50" />
+
+      <div className="max-w-md w-full relative z-10">
         <div className="text-center mb-8">
-          <img src="/logo.png" alt="SPMVV Logo" className="h-20 w-auto object-contain mx-auto mb-4" />
-          <h1 className="text-3xl font-bold text-primary-800 mb-2">
+          <img src="/logo.png" alt="SPMVV Logo" className="h-20 w-auto object-contain mx-auto mb-4 drop-shadow-lg" />
+          <h1 className="text-3xl font-bold text-white mb-2 drop-shadow-md">
             SPMVV SOET Exam Results
           </h1>
-          <p className="text-gray-600">Sign in to view your results</p>
+          <p className="text-gray-200 drop-shadow">Sign in to view your results</p>
         </div>
 
-        <div className="bg-white rounded-lg shadow-xl p-8">
+        <div className="bg-white/90 backdrop-blur-sm rounded-lg shadow-2xl p-8">
           <div className="flex mb-6 bg-gray-100 rounded-lg p-1">
             <button
               type="button"
-              onClick={() => {
-                setUserType('student');
-                setErrors({});
-              }}
-              className={`flex-1 py-2 px-4 rounded-md transition-colors ${
-                userType === 'student'
-                  ? 'bg-primary-600 text-white'
-                  : 'text-gray-600 hover:text-gray-800'
-              }`}
+              onClick={() => { setUserType('student'); setErrors({}); }}
+              className={studentBtnClass}
             >
               Student
             </button>
             <button
               type="button"
-              onClick={() => {
-                setUserType('admin');
-                setErrors({});
-              }}
-              className={`flex-1 py-2 px-4 rounded-md transition-colors ${
-                userType === 'admin'
-                  ? 'bg-primary-600 text-white'
-                  : 'text-gray-600 hover:text-gray-800'
-              }`}
+              onClick={() => { setUserType('admin'); setErrors({}); }}
+              className={adminBtnClass}
             >
               Admin
             </button>

@@ -206,13 +206,10 @@ echo -e "${BLUE}[8/10] Building and deploying backend...${NC}"
 cd "$PROJECT_DIR/backend"
 
 echo -e "${CYAN}Building backend image (this may take 5-10 minutes)...${NC}"
-docker build --force-rm -t spmvv-backend . 2>&1 | grep -E "(STEP|Successfully|Error)" || true
-
-if [ ${PIPESTATUS[0]} -ne 0 ]; then
-    echo -e "${RED}✗ Backend build failed${NC}"
+if ! docker build --force-rm -t spmvv-backend . ; then
+    echo -e "✗ Backend build failed"
     exit 1
 fi
-
 echo -e "${GREEN}✓ Backend image built${NC}"
 
 echo -e "${CYAN}Starting backend container...${NC}"
@@ -254,11 +251,9 @@ pkill -f "docker build.*frontend" 2>/dev/null || true
 sleep 2
 
 echo -e "${CYAN}Building frontend image (this may take 2-3 minutes)...${NC}"
-docker build \
+if ! docker build \
   --build-arg VITE_API_URL="http://$SERVER_IP:8000/api" \
-  -t spmvv-frontend . 2>&1 | grep -E "(STEP|Successfully|Error)" || true
-
-if [ ${PIPESTATUS[0]} -ne 0 ]; then
+  -t spmvv-frontend . ; then
     echo -e "${RED}✗ Frontend build failed${NC}"
     exit 1
 fi
