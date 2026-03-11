@@ -67,13 +67,11 @@ const Navbar = () => {
 
   if (!user) return null;
 
+  const ADMIN_ROLES = ['admin', 'dean', 'vice_principal', 'principal', 'hod', 'faculty', 'staff'];
+
   const getDashboardLink = () => {
-    switch (user.role) {
-      case 'admin': return '/admin/dashboard';
-      case 'principal': return '/principal/dashboard';
-      case 'hod': return '/hod/dashboard';
-      default: return '/student/dashboard';
-    }
+    if (ADMIN_ROLES.includes(user.role)) return '/admin/dashboard';
+    return '/student/dashboard';
   };
 
   const getDisplayName = () => {

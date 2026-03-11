@@ -79,21 +79,28 @@ def manage_exams(request):
             return Response({'error': 'Only admin users can create exams'}, 
                           status=status.HTTP_403_FORBIDDEN)
         
-        data = request.data.copy()
-        data['created_by'] = request.user.id
-        
-        serializer = ExamSerializer(data=data, context={'request': request})
-        if serializer.is_valid():
-            exam = serializer.save()
+        try:
+            data = request.data.copy()
+            data['created_by'] = request.user.id
             
-            log_audit(request.user, 'exam_created', {
-                'exam_id': exam.id,
-                'exam_name': exam.exam_name,
-                'ip': request.META.get('REMOTE_ADDR', 'unknown')
-            })
-            
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            serializer = ExamSerializer(data=data, context={'request': request})
+            if serializer.is_valid():
+                exam = serializer.save()
+                
+                log_audit(request.user, 'exam_created', {
+                    'exam_id': exam.id,
+                    'exam_name': exam.exam_name,
+                    'ip': request.META.get('REMOTE_ADDR', 'unknown')
+                })
+                
+                return Response(serializer.data, status=status.HTTP_201_CREATED)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            import traceback
+            return Response(
+                {"error": str(e), "detail": traceback.format_exc()},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
 
 @api_view(['GET', 'PUT', 'DELETE'])

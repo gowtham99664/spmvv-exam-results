@@ -102,6 +102,7 @@ const SemesterSummaryTable = ({ studentInfo, semesterSummary, onRefresh }) => {
                   <th className="text-center align-middle py-3" style={{ fontWeight: '600' }}>YEAR</th>
                   <th className="text-center align-middle py-3" style={{ fontWeight: '600' }}>SEMESTER</th>
                                     <th className="text-center align-middle py-3" style={{ fontWeight: '600' }}>TOTAL MARKS</th>
+                                                          <th className="text-center align-middle py-3" style={{ fontWeight: '600' }}>GRADE</th>
                   <th className="text-center align-middle py-3" style={{ fontWeight: '600' }}>SGPA</th>
                   <th className="text-center align-middle py-3" style={{ fontWeight: '600' }}>RESULT</th>
                   <th className="text-center align-middle py-3" style={{ fontWeight: '600' }}>PENDING</th>
@@ -144,8 +145,11 @@ const SemesterSummaryTable = ({ studentInfo, semesterSummary, onRefresh }) => {
                           </strong>
                         </td>
                         <td className="text-center align-middle py-3">
-                          <span className={`badge ${latest.overall_result === 'Pass' ? 'bg-success' : 'bg-danger'}`}>
+                          <span className={`badge ${latest.overall_result === 'Pass' ? 'bg-success' : 'bg-danger'} me-1`}>
                             {latest.overall_result}
+                          </span>
+                          <span className="badge bg-secondary">
+                            {latest.overall_grade || 'N/A'}
                           </span>
                         </td>
                         <td className="text-center align-middle py-3">
@@ -184,6 +188,7 @@ const SemesterSummaryTable = ({ studentInfo, semesterSummary, onRefresh }) => {
                                       <th className="text-center align-middle py-3" style={{ fontWeight: '600' }}>ATTEMPT</th>
                                       <th className="text-center align-middle py-3" style={{ fontWeight: '600' }}>EXAM NAME</th>
                                                                             <th className="text-center align-middle py-3" style={{ fontWeight: '600' }}>TOTAL MARKS</th>
+                                                          <th className="text-center align-middle py-3" style={{ fontWeight: '600' }}>GRADE</th>
                                       <th className="text-center align-middle py-3" style={{ fontWeight: '600' }}>SGPA</th>
                                       <th className="text-center align-middle py-3" style={{ fontWeight: '600' }}>RESULT</th>
                                       <th className="text-center align-middle py-3" style={{ fontWeight: '600' }}>PENDING</th>

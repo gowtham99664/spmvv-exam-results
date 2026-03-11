@@ -51,10 +51,11 @@ const Login = () => {
         : { username: formData.username, password: formData.password };
       const result = await login(credentials, userType);
       if (result.success) {
-        if (userType === 'admin') {
-          navigate('/admin/dashboard');
-        } else {
+        const role = result.user?.role;
+        if (role === 'student') {
           navigate('/student/dashboard');
+        } else {
+          navigate('/admin/dashboard');
         }
       } else {
         setErrors({ general: result.error });
