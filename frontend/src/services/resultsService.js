@@ -151,3 +151,19 @@ export const studentService = {
     return response.data;
   },
 };
+
+// Detained Students service
+export const detainedService = {
+  // Get detained students with filters
+  getDetainedStudents: async ({ year, semester, branch, course, credits, operator }) => {
+    const params = new URLSearchParams();
+    if (year) params.append('year', year);
+    if (semester) params.append('semester', semester);
+    if (branch && branch !== 'all') params.append('branch', branch);
+    if (course && course !== 'all') params.append('course', course);
+    params.append('credits', credits);
+    params.append('operator', operator);
+    const response = await api.get(`/detained-students/?${params.toString()}`);
+    return response.data;
+  },
+};

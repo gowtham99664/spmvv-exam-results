@@ -52,6 +52,7 @@ urlpatterns = [
 
     # Health check endpoint
     path('health/', views.health_check, name='health_check'),
+    path('detained-students/', views.get_detained_students, name='detained_students'),
     path('profile/', views.student_profile, name='student_profile'),
     
     # ==================== HALL TICKET MANAGEMENT ====================

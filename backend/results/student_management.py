@@ -70,11 +70,20 @@ def get_student_history(request, roll_number):
             subjects = result.subjects.all()
             total_subjects = subjects.count()
             pending_subjects = 0
-            
+            pending_subject_names = []
+            total_credits = 0
+            earned_credits = 0
+            PASS_GRADES = {'O', 'A', 'B', 'C', 'D'}
+
             # Count F grades as pending subjects
             for subject in subjects:
+                cr = subject.credits or 0
+                total_credits += cr
+                if subject.grade and subject.grade.upper() in PASS_GRADES:
+                    earned_credits += cr
                 if subject.grade and subject.grade.upper() == 'F':
                     pending_subjects += 1
+                    pending_subject_names.append(subject.subject_name)
             
             overall_result = result.overall_result if result.overall_result else ('Pass' if pending_subjects == 0 else 'Fail')
             key = (result.year, result.semester)
@@ -92,7 +101,10 @@ def get_student_history(request, roll_number):
                 'overall_result': overall_result,
                 'overall_grade': result.overall_grade or '',
                 'total_subjects': total_subjects,
+                'total_credits': total_credits,
+                'earned_credits': earned_credits,
                 'pending_subjects': pending_subjects,
+                'pending_subject_names': pending_subject_names,
                 'num_attempts': num_attempts,
                 'completion_date': completion_date_str,
                 'uploaded_at': result.uploaded_at.strftime('%Y-%m-%d %H:%M:%S')

@@ -1877,3 +1877,246 @@ def student_profile(request):
             'last_name': user.last_name,
             'email': user.email,
         })
+
+
+
+
+# ==================== DETAINED STUDENTS ====================
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def get_detained_students(request):
+    """
+    Get detained students based on CUMULATIVE earned credits up to the selected year+semester.
+
+    Logic:
+    - year + semester define an "up to" boundary.
+      e.g. year=2, semester=1  →  include all semesters where (year*2+semester) <= (2*2+1)=5
+      i.e. Y1S1, Y1S2, Y2S1
+    - If year/semester are omitted, all semesters are included.
+    - For each unique student (roll_number), sum earned credits across all qualifying semesters.
+    - Compare that cumulative total against the credits threshold using the given operator.
+    - branch / course filters restrict which result rows are considered.
+
+    Query params:
+        year        - Academic year (1-4), optional — upper boundary
+        semester    - Semester (1 or 2), optional — upper boundary
+        branch      - Branch code or 'all', optional
+        credits     - Numeric credits threshold (required)
+        operator    - One of: gt, gte, lt, lte, eq (required)
+        course      - 'btech' or 'mtech', optional
+    """
+    if request.user.role != "admin":
+        return Response(
+            {"error": "Permission denied"}, status=status.HTTP_403_FORBIDDEN
+        )
+
+    # ---------- required params ----------
+    try:
+        credits_threshold = float(request.GET.get("credits", ""))
+    except (ValueError, TypeError):
+        return Response(
+            {"error": "credits parameter is required and must be a number"},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    operator = request.GET.get("operator", "").strip()
+    VALID_OPERATORS = ("gt", "gte", "lt", "lte", "eq")
+    if operator not in VALID_OPERATORS:
+        return Response(
+            {"error": f"operator must be one of: {', '.join(VALID_OPERATORS)}"},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    # ---------- optional filters ----------
+    year_filter = request.GET.get("year", "").strip()
+    semester_filter = request.GET.get("semester", "").strip()
+    branch_filter = request.GET.get("branch", "all").strip()
+    course_filter = request.GET.get("course", "").strip()
+
+    # Convert year / semester to integers if supplied
+    up_to_year = None
+    up_to_sem = None
+    if year_filter:
+        try:
+            up_to_year = int(year_filter)
+        except ValueError:
+            return Response(
+                {"error": "year must be an integer"}, status=status.HTTP_400_BAD_REQUEST
+            )
+    if semester_filter:
+        try:
+            up_to_sem = int(semester_filter)
+        except ValueError:
+            return Response(
+                {"error": "semester must be an integer"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+    # Compute a linear semester sequence number: Y1S1=1, Y1S2=2, Y2S1=3, Y2S2=4, ...
+    # seq(year, sem) = (year - 1) * 2 + sem
+    def sem_seq(y, s):
+        return (y - 1) * 2 + s
+
+    # Upper boundary sequence number (None = no limit)
+    if up_to_year is not None and up_to_sem is not None:
+        boundary_seq = sem_seq(up_to_year, up_to_sem)
+    elif up_to_year is not None:
+        # year given but no semester → include both semesters of that year
+        boundary_seq = sem_seq(up_to_year, 2)
+    elif up_to_sem is not None:
+        # semester given but no year → include that semester across all years
+        # This edge case is unlikely but handle gracefully: no upper year bound,
+        # filter only semesters whose semester number <= up_to_sem
+        boundary_seq = None  # handled per-row below
+    else:
+        boundary_seq = None  # no limit — sum everything
+
+    # ---------- build queryset ----------
+    results_qs = Result.objects.prefetch_related("subjects").all()
+
+    if branch_filter and branch_filter.lower() != "all":
+        results_qs = results_qs.filter(branch__iexact=branch_filter)
+
+    if course_filter and course_filter.lower() not in ("", "all"):
+        results_qs = results_qs.filter(course__iexact=course_filter)
+
+    # ---------- group all rows by student ----------
+    from collections import defaultdict
+
+    PASSING_GRADES = {"O", "A", "B", "C", "D"}
+    YEAR_NAMES = {1: "I", 2: "II", 3: "III", 4: "IV"}
+
+    # student_meta: latest row info (name, branch, course, latest year/sem)
+    student_meta = {}
+    # student_semesters: roll -> {(year,sem): {subject_code: subject}}
+    student_sems = defaultdict(lambda: defaultdict(dict))
+
+    for result in results_qs.order_by("roll_number", "year", "semester", "uploaded_at"):
+        r_year = result.year
+        r_sem = result.semester
+
+        # Apply boundary filter
+        if boundary_seq is not None:
+            if sem_seq(r_year, r_sem) > boundary_seq:
+                continue
+        elif up_to_sem is not None:
+            # only semester-based filter, no year limit
+            if r_sem > up_to_sem:
+                continue
+
+        roll = result.roll_number
+        # Track latest metadata
+        student_meta[roll] = {
+            "student_name": result.student_name,
+            "branch": result.branch,
+            "course": result.course,
+            "latest_year": r_year,
+            "latest_sem": r_sem,
+        }
+
+        # Merge subjects — latest uploaded result for the same (year, sem) wins per subject
+        for subject in result.subjects.all():
+            student_sems[roll][(r_year, r_sem)][subject.subject_code] = subject
+
+    # ---------- calculate cumulative credits per student ----------
+    detained_students = []
+
+    for roll, sem_map in student_sems.items():
+        meta = student_meta[roll]
+
+        cumulative_earned = 0
+        cumulative_total = 0
+        all_failed = []
+
+        for (yr, sm), subjects_by_code in sorted(sem_map.items()):
+            for subject in subjects_by_code.values():
+                if subject.credits:
+                    cumulative_total += subject.credits
+                    grade = (subject.grade or "").strip().upper()
+                    if grade in PASSING_GRADES:
+                        cumulative_earned += subject.credits
+                    else:
+                        all_failed.append(
+                            {
+                                "subject_code": subject.subject_code,
+                                "subject_name": subject.subject_name,
+                                "grade": subject.grade,
+                                "credits": subject.credits,
+                                "year": yr,
+                                "semester": sm,
+                            }
+                        )
+
+        # Apply operator comparison on cumulative earned credits
+        if operator == "gt":
+            match = cumulative_earned > credits_threshold
+        elif operator == "gte":
+            match = cumulative_earned >= credits_threshold
+        elif operator == "lt":
+            match = cumulative_earned < credits_threshold
+        elif operator == "lte":
+            match = cumulative_earned <= credits_threshold
+        else:  # eq
+            match = cumulative_earned == credits_threshold
+
+        if not match:
+            continue
+
+        # Build "up to" label for display
+        if up_to_year and up_to_sem:
+            upto_label = f"{YEAR_NAMES.get(up_to_year, up_to_year)} Year {YEAR_NAMES.get(up_to_sem, up_to_sem)} Semester"
+        elif up_to_year:
+            upto_label = (
+                f"{YEAR_NAMES.get(up_to_year, up_to_year)} Year (both semesters)"
+            )
+        else:
+            upto_label = "All semesters"
+
+        detained_students.append(
+            {
+                "roll_number": roll,
+                "student_name": meta["student_name"],
+                "branch": meta["branch"],
+                "course": meta["course"],
+                "up_to_label": upto_label,
+                "cumulative_earned_credits": cumulative_earned,
+                "cumulative_total_credits": cumulative_total,
+                "failed_subjects_count": len(all_failed),
+                "failed_subjects": all_failed,
+            }
+        )
+
+    detained_students.sort(key=lambda x: (x["branch"] or "", x["roll_number"]))
+
+    create_audit_log(
+        request.user,
+        "result_view",
+        f"Detained students report (cumulative): up_to=Y{year_filter or 'all'}S{semester_filter or 'all'}, "
+        f"branch={branch_filter}, credits {operator} {credits_threshold} -> {len(detained_students)} students",
+        request,
+    )
+
+    # Build up_to_label for the response filters (safe even if no students found)
+    if up_to_year and up_to_sem:
+        resp_upto_label = f"{YEAR_NAMES.get(up_to_year, up_to_year)} Year {YEAR_NAMES.get(up_to_sem, up_to_sem)} Semester"
+    elif up_to_year:
+        resp_upto_label = f"{YEAR_NAMES.get(up_to_year, up_to_year)} Year (both semesters)"
+    elif up_to_sem:
+        resp_upto_label = f"Semester {up_to_sem} (all years)"
+    else:
+        resp_upto_label = "All semesters"
+
+    return Response({
+        'count': len(detained_students),
+        'filters': {
+            'year':              year_filter or 'all',
+            'semester':          semester_filter or 'all',
+            'branch':            branch_filter,
+            'course':            course_filter or 'all',
+            'credits_threshold': credits_threshold,
+            'operator':          operator,
+            'up_to_label':       resp_upto_label,
+        },
+        'detained_students': detained_students,
+    })

@@ -11,9 +11,10 @@ import Toast from '../components/Toast';
 import SemesterSummaryTable from '../components/SemesterSummaryTable';
 import { validateExcelFile } from '../utils/validation';
 import useEscapeKey from '../hooks/useEscapeKey';
+import DetainedStudentsModal from '../components/DetainedStudentsModal';
 import { 
   FaUpload, FaUsers, FaBullhorn, FaIdCard, FaSearch, 
-  FaCalendar, FaTrash, FaChartBar, FaDownload, FaFileExcel 
+  FaCalendar, FaTrash, FaChartBar, FaDownload, FaFileExcel, FaUserSlash 
 } from 'react-icons/fa';
 
 const AdminDashboard = () => {
@@ -26,6 +27,7 @@ const AdminDashboard = () => {
   const [toast, setToast] = useState({ show: false, message: '', type: '' });
   const [showSearchModal, setShowSearchModal] = useState(false);
   const [showUploadModal, setShowUploadModal] = useState(false);
+  const [showDetainedModal, setShowDetainedModal] = useState(false);
   const [file, setFile] = useState(null);
   const [year, setYear] = useState('');
   const [semester, setSemester] = useState('');
@@ -63,6 +65,7 @@ const AdminDashboard = () => {
 
   // ESC key handler to close upload modal
   useEscapeKey(() => setShowUploadModal(false), showUploadModal);
+  useEscapeKey(() => setShowDetainedModal(false), showDetainedModal);
 
   const fetchDashboardStats = async () => {
     try {
@@ -343,6 +346,15 @@ const AdminDashboard = () => {
             color="teal"
             onClick={() => setShowSearchModal(true)}
           />
+
+          {/* Detained Students Card */}
+          <DashboardCard
+            title="Detained Students"
+            description="Generate detained student reports by year, semester, branch and credits threshold"
+            icon={<FaUserSlash />}
+            color="red"
+            onClick={() => setShowDetainedModal(true)}
+          />
         </div>
 
         {/* Student History Section */}
@@ -619,6 +631,12 @@ const AdminDashboard = () => {
         onStudentSelect={handleStudentSelect}
       />
       
+      {/* Detained Students Modal */}
+      <DetainedStudentsModal
+        isOpen={showDetainedModal}
+        onClose={() => setShowDetainedModal(false)}
+      />
+
       {/* Toast Notification */}
       {toast.show && (
         <Toast 
