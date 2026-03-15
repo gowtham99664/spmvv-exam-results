@@ -30,6 +30,7 @@
 15. Error Handling Strategy
 16. Logging and Monitoring
 17. Future Enhancements and Recommendations
+18. Detained Students Feature
 
 ---
 
@@ -4203,6 +4204,7 @@ Every significant admin action creates an `AuditLog` entry:
 ---
 
 ## 17. Future Enhancements and Recommendations
+18. Detained Students Feature
 
 ### 17.1 HTTPS / TLS Termination
 
@@ -4521,9 +4523,275 @@ class Command(BaseCommand):
 This prevents the `audit_logs` table from consuming unlimited storage while
 preserving a legally/institutionally required archive in compressed form.
 
+
 ---
 
-*End of Technical Report — SPMVV Exam Results Portal*
+## 18. Detained Students Feature
 
-*Generated: 2025 | Version: 2.0*
-*Total Coverage: 17 Sections | Django 5.0.9 + React 18.2.0 + MariaDB 10.11*
+### 18.1 Overview
+
+The Detained Students feature is an admin-only reporting tool that identifies
+students who fail to meet a minimum earned-credit threshold within a specified
+academic boundary. Universities typically "detain" (prevent from appearing in
+an exam) any student who has not earned enough credits across prior semesters,
+indicating insufficient academic progress. This feature automates that
+identification process by querying the results database and computing cumulative
+earned credits per student.
+
+The feature is surfaced in the Admin Dashboard through a dedicated **Detained
+Students** card, which opens a full-screen modal for filtering and viewing results.
+
+### 18.2 Business Logic - Cumulative Credit Calculation
+
+The core logic is built around **cumulative earned credits**, not per-semester
+credits. This distinction is important:
+
+- A student may pass all subjects in Y1S1 (earning 30 credits) but fail three
+  subjects in Y1S2 (earning only 20 out of 26 credits). Their cumulative earned
+  credits after Y1S2 are 50, not 26.
+- Detention decisions must consider the full academic journey up to a cutoff
+  point, not just the most recent semester.
+
+**Semester sequence numbering:**
+The backend assigns each year-semester combination a linear sequence number:
+
+```
+Y1S1 = 1,  Y1S2 = 2
+Y2S1 = 3,  Y2S2 = 4
+Y3S1 = 5,  Y3S2 = 6
+Y4S1 = 7,  Y4S2 = 8
+```
+
+`seq(year, semester) = (year - 1) * 2 + semester`
+
+When an admin selects "Up to Year 2, Semester 1", the boundary sequence number
+is `(2-1)*2 + 1 = 3`. The system includes all result rows where the result's
+own sequence number is <= 3, i.e., Y1S1, Y1S2, and Y2S1.
+
+**Earned credits definition:**
+A subject's credits are counted as "earned" only if the student's grade is in
+the passing set: **O, A, B, C, D**. A grade of **F** (fail) contributes zero
+earned credits, even though the subject was attempted. This mirrors the academic
+convention that failing a subject does not contribute to the earned credit total.
+
+**Multi-attempt merging:**
+Students often repeat failed subjects in supplementary exams. The system merges
+all result uploads for the same `(year, semester)` combination by subject code,
+keeping only the **latest uploaded** attempt for each subject. This ensures that
+if a student originally received F in a subject but then passed it in the
+supplementary exam, only the passing grade is counted.
+
+### 18.3 API Endpoint
+
+**`GET /api/detained-students/`**
+
+| Parameter  | Type    | Required | Description                                              |
+|------------|---------|----------|----------------------------------------------------------|
+| `credits`  | number  | Yes      | Credit threshold to compare against                      |
+| `operator` | string  | Yes      | Comparison operator: `gt`, `gte`, `lt`, `lte`, `eq`     |
+| `year`     | integer | No       | Upper boundary year (1-4); omit for no year limit        |
+| `semester` | integer | No       | Upper boundary semester (1 or 2); omit for no sem limit  |
+| `branch`   | string  | No       | Branch code (e.g. `CSE`, `ECE`) or omit/`all` for all   |
+| `course`   | string  | No       | `btech` or `mtech`; omit/`all` for both courses         |
+
+**Access:** Admin role only. Students receive 403 Forbidden.
+
+**Example request - find students who have earned fewer than 60 credits up to
+Year 2, Semester 1, in the CSE branch:**
+
+```
+GET /api/detained-students/?credits=60&operator=lt&year=2&semester=1&branch=CSE
+```
+
+**Example response:**
+```json
+{
+  "count": 3,
+  "filters": {
+    "year": "2",
+    "semester": "1",
+    "branch": "CSE",
+    "course": "all",
+    "credits_threshold": 60.0,
+    "operator": "lt",
+    "up_to_label": "II Year I Semester"
+  },
+  "detained_students": [
+    {
+      "roll_number": "21001050",
+      "student_name": "Lakshmi Devi",
+      "branch": "CSE",
+      "course": "btech",
+      "up_to_label": "II Year I Semester",
+      "cumulative_earned_credits": 48,
+      "cumulative_total_credits": 80,
+      "failed_subjects_count": 3,
+      "failed_subjects": [
+        {
+          "subject_code": "CS201",
+          "subject_name": "Data Structures",
+          "grade": "F",
+          "credits": 4,
+          "year": 1,
+          "semester": 2
+        }
+      ]
+    }
+  ]
+}
+```
+
+### 18.4 Backend Implementation
+
+The view is defined in `backend/results/views.py` and registered at
+`results/urls.py:55` as `path('detained-students/', views.get_detained_students)`.
+
+**Processing pipeline:**
+
+1. **Authorization check** - Reject non-admin users with 403 immediately.
+2. **Parameter validation** - `credits` must be a valid number; `operator` must
+   be one of the five allowed values (`gt`, `gte`, `lt`, `lte`, `eq`). Invalid
+   parameters return 400 Bad Request with a descriptive error message.
+3. **Boundary computation** - Convert the optional `year` and `semester` inputs
+   into a linear sequence number. Handle three edge cases:
+   - Both `year` and `semester` provided: exact boundary.
+   - Only `year` provided: include both semesters of that year (`boundary = year*2`).
+   - Only `semester` provided: filter by semester number across all years.
+   - Neither provided: include all semesters.
+4. **Queryset filtering** - Apply `branch` and `course` filters to the initial
+   `Result` queryset; prefetch related `subjects` to avoid N+1 queries.
+5. **Student grouping** - Iterate over results ordered by
+   `(roll_number, year, semester, uploaded_at)`. For each result row, apply
+   the boundary filter and merge subjects into a per-student, per-semester
+   dictionary keyed by `subject_code`. Because results are ordered by
+   `uploaded_at`, later uploads overwrite earlier ones for the same subject,
+   implementing the "latest wins" merge strategy.
+6. **Credit summation** - For each student, iterate over all qualifying subjects,
+   accumulate `cumulative_total_credits` for all subjects and
+   `cumulative_earned_credits` for subjects with a passing grade (O/A/B/C/D).
+   Track all failed subjects with their year, semester, and credits for the
+   response payload.
+7. **Operator comparison** - Apply the chosen comparison operator between
+   `cumulative_earned_credits` and `credits_threshold`. Only students that
+   satisfy the condition are included in the result list.
+8. **Sorting** - Final list is sorted by `(branch, roll_number)` for consistent,
+   predictable output.
+9. **Audit logging** - Every call is recorded in `AuditLog` with the acting
+   admin's identity, filter parameters, and result count.
+
+```python
+# Simplified core logic from backend/results/views.py
+
+PASSING_GRADES = {"O", "A", "B", "C", "D"}
+
+for roll, sem_map in student_sems.items():
+    cumulative_earned = 0
+    cumulative_total  = 0
+    all_failed = []
+
+    for (yr, sm), subjects_by_code in sorted(sem_map.items()):
+        for subject in subjects_by_code.values():
+            if subject.credits:
+                cumulative_total += subject.credits
+                grade = (subject.grade or "").strip().upper()
+                if grade in PASSING_GRADES:
+                    cumulative_earned += subject.credits
+                else:
+                    all_failed.append({ ... })
+
+    match = {
+        "gt":  cumulative_earned >  credits_threshold,
+        "gte": cumulative_earned >= credits_threshold,
+        "lt":  cumulative_earned <  credits_threshold,
+        "lte": cumulative_earned <= credits_threshold,
+        "eq":  cumulative_earned == credits_threshold,
+    }[operator]
+
+    if match:
+        detained_students.append({ ... })
+```
+
+### 18.5 Frontend Implementation
+
+**Component:** `frontend/src/components/DetainedStudentsModal.jsx`
+
+The modal is opened from the Admin Dashboard (`frontend/src/pages/AdminDashboard.jsx`)
+via a dedicated "Detained Students" card. The `showDetainedModal` state variable
+controls visibility; the `useEscapeKey` hook wires the Escape key to close it.
+
+**Filter form fields:**
+
+| Field             | Type   | Default       | Notes                                       |
+|-------------------|--------|---------------|---------------------------------------------|
+| Up to Year        | Select | All Years     | Optional upper boundary year                |
+| Up to Semester    | Select | All Semesters | Optional upper boundary semester            |
+| Operator          | Select | `lt`          | Five options: `<`, `<=`, `=`, `>=`, `>`     |
+| Credits Threshold | Number | (required)    | Validated client-side as a numeric value    |
+
+**Service layer:** `frontend/src/services/resultsService.js` exports
+`detainedService.getDetainedStudents(params)`, which builds a `URLSearchParams`
+object from the filter state and calls `GET /api/detained-students/`.
+
+**Results display:**
+- A summary bar shows the matched count and the human-readable `up_to_label`
+  (e.g., "II Year I Semester") returned by the API.
+- A scrollable table renders one row per detained student with:
+  - Roll number, name, branch/course
+  - Cumulative earned credits (highlighted in red badge)
+  - Cumulative total credits
+  - Failed subjects count (highlighted in orange badge)
+  - Comma-separated list of failed subject names with year/semester annotations
+- An **Export CSV** button triggers a client-side CSV generation and file download
+  (`detained_students.csv`) without any additional server round-trip.
+
+**Empty state:** If no students match the filters, a full-panel empty state is
+shown with a `FaUserSlash` icon and a descriptive message.
+
+**Loading state:** While the API call is in flight, a spinner with "Searching..."
+text is displayed and the submit button is disabled to prevent double-submission.
+
+### 18.6 CSV Export
+
+The CSV export is implemented entirely on the frontend using the browser's Blob
+API. No server endpoint is involved. The exported columns are:
+
+```
+#, Roll No, Name, Course, Cumulative Earned Credits,
+Cumulative Total Credits, Failed Subjects Count, Failed Subjects
+```
+
+The "Failed Subjects" column contains a semicolon-separated list of subject names.
+Student names are double-quoted to handle names containing commas.
+
+### 18.7 Security Considerations
+
+- **Admin-only access:** The `get_detained_students` view checks
+  `request.user.role != "admin"` and returns 403 immediately for any non-admin
+  user, in addition to the `IsAuthenticated` permission class.
+- **Input validation:** Both `credits` and `operator` are validated before any
+  database query is executed. Invalid values return 400 with a clear error message.
+- **No new PII exposure:** The endpoint only returns student data (name, roll
+  number, grades) already visible to admins through other endpoints. It does not
+  introduce any new data exposure.
+- **Audit trail:** Every call is recorded in the `AuditLog` table with the
+  admin's username, IP address, and the exact filter parameters used, providing
+  full accountability for who generated which report and when.
+
+### 18.8 Integration Points
+
+| Integration          | Detail                                                            |
+|----------------------|-------------------------------------------------------------------|
+| URL registration     | `results/urls.py` line 55                                         |
+| View function        | `backend/results/views.py` - `get_detained_students()`            |
+| Frontend component   | `frontend/src/components/DetainedStudentsModal.jsx`               |
+| Frontend service     | `frontend/src/services/resultsService.js` - `detainedService`     |
+| Admin Dashboard hook | `frontend/src/pages/AdminDashboard.jsx` - card and modal wiring   |
+| Audit logging        | `AuditLog` model, action type `result_view`                       |
+| Models consumed      | `Result`, `Subject`                                               |
+
+---
+
+*End of Technical Report - SPMVV Exam Results Portal*
+
+*Generated: 2026 | Version: 2.1*
+*Total Coverage: 18 Sections | Django 5.0.9 + React 18.2.0 + MariaDB 10.11*
