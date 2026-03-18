@@ -47,16 +47,16 @@ echo   - Docker Desktop is running
 echo.
 
 REM Step 1: Cleanup
-echo [STEP 1/5] Cleaning up old containers...
+echo [STEP 1/6] Cleaning up old containers...
 echo   - Stopping containers...
-docker stop %PROJECT_NAME%_backend %PROJECT_NAME%_frontend %PROJECT_NAME%_db 2>nul
+docker stop %PROJECT_NAME%_backend %PROJECT_NAME%_frontend %PROJECT_NAME%_db %PROJECT_NAME%_ollama 2>nul
 echo   - Removing containers...
-docker rm -f %PROJECT_NAME%_backend %PROJECT_NAME%_frontend %PROJECT_NAME%_db 2>nul
+docker rm -f %PROJECT_NAME%_backend %PROJECT_NAME%_frontend %PROJECT_NAME%_db %PROJECT_NAME%_ollama 2>nul
 echo   - Cleanup completed
 echo.
 
 REM Step 2: Network
-echo [STEP 2/5] Setting up Docker network...
+echo [STEP 2/6] Setting up Docker network...
 docker network inspect %PROJECT_NAME%_network >nul 2>&1
 if errorlevel 1 (
     echo   - Creating network...
@@ -68,7 +68,7 @@ echo   - Network ready
 echo.
 
 REM Step 3: Database
-echo [STEP 3/5] Deploying database...
+echo [STEP 3/6] Deploying database...
 echo   - Starting MariaDB container...
 docker run -d --name %PROJECT_NAME%_db ^
   --network %PROJECT_NAME%_network ^
@@ -91,8 +91,54 @@ timeout /t 30 /nobreak >nul
 echo   - Database ready
 echo.
 
-REM Step 4: Backend
-echo [STEP 4/5] Deploying backend...
+REM Step 4: Ollama AI container
+echo [STEP 4/6] Deploying Ollama AI container...
+cd /d "%PROJECT_DIR%\ollama"
+
+if not exist "Dockerfile" (
+    echo ERROR: Ollama Dockerfile not found!
+    echo Expected location: %PROJECT_DIR%\ollama\Dockerfile
+    pause
+    exit /b 1
+)
+
+REM Only build if image does not already exist (model bake takes ~5-10 min)
+docker image inspect %PROJECT_NAME%-ollama:latest >nul 2>&1
+if errorlevel 1 (
+    echo   - Building Ollama image...
+    echo   - NOTE: This pulls qwen2.5:3b (~2 GB) and may take 5-10 minutes...
+    docker build -t %PROJECT_NAME%-ollama .
+    if errorlevel 1 (
+        echo ERROR: Ollama image build failed!
+        pause
+        exit /b 1
+    )
+    echo   - Ollama image built
+) else (
+    echo   - Ollama image already exists. Skipping build.
+    echo   - To force rebuild: docker rmi %PROJECT_NAME%-ollama:latest and re-run.
+)
+
+echo   - Starting Ollama container...
+docker run -d --name %PROJECT_NAME%_ollama ^
+  --network %PROJECT_NAME%_network ^
+  -p 11434:11434 ^
+  -e OLLAMA_HOST=0.0.0.0:11434 ^
+  %PROJECT_NAME%-ollama:latest
+
+if errorlevel 1 (
+    echo ERROR: Failed to start Ollama container
+    pause
+    exit /b 1
+)
+
+echo   - Waiting for Ollama to be ready (15 seconds)...
+timeout /t 15 /nobreak >nul
+echo   - Ollama ready
+echo.
+
+REM Step 5: Backend
+echo [STEP 5/6] Deploying backend...
 cd /d "%PROJECT_DIR%\backend"
 
 if not exist "Dockerfile" (
@@ -129,6 +175,7 @@ docker run -d --name %PROJECT_NAME%_backend ^
   -e ADMIN_USERNAME=%ADMIN_USERNAME% ^
   -e ADMIN_DEFAULT_PASSWORD=%ADMIN_PASSWORD% ^
   -e CORS_ALLOWED_ORIGINS=http://localhost:2026,http://127.0.0.1:2026 ^
+  -e OLLAMA_URL=http://%PROJECT_NAME%_ollama:11434 ^
   -p 8000:8000 ^
   %PROJECT_NAME%-backend:latest
 
@@ -143,8 +190,8 @@ timeout /t 15 /nobreak >nul
 echo   - Backend ready
 echo.
 
-REM Step 5: Frontend
-echo [STEP 5/5] Deploying frontend...
+REM Step 6: Frontend
+echo [STEP 6/6] Deploying frontend...
 cd /d "%PROJECT_DIR%\frontend"
 
 if not exist "Dockerfile" (
@@ -213,6 +260,7 @@ echo Access Information:
 echo   Frontend URL:  http://localhost:2026
 echo   Backend API:   http://localhost:8000/api
 echo   Admin Panel:   http://localhost:8000/admin
+echo   Ollama API:    http://localhost:11434
 echo.
 echo Login Credentials:
 echo   Username:      %ADMIN_USERNAME%
@@ -223,7 +271,7 @@ echo.
 echo Useful Commands:
 echo   Check status:  docker ps
 echo   View logs:     docker logs -f %PROJECT_NAME%_frontend
-echo   Stop all:      docker stop %PROJECT_NAME%_db %PROJECT_NAME%_backend %PROJECT_NAME%_frontend
+echo   Stop all:      docker stop %PROJECT_NAME%_db %PROJECT_NAME%_ollama %PROJECT_NAME%_backend %PROJECT_NAME%_frontend
 echo   Restart:       docker restart %PROJECT_NAME%_backend
 echo.
 echo ===============================================================================

@@ -12,9 +12,10 @@ import SemesterSummaryTable from '../components/SemesterSummaryTable';
 import { validateExcelFile } from '../utils/validation';
 import useEscapeKey from '../hooks/useEscapeKey';
 import DetainedStudentsModal from '../components/DetainedStudentsModal';
+import TimetableModal from '../components/TimetableModal';
 import { 
   FaUpload, FaUsers, FaBullhorn, FaIdCard, FaSearch, 
-  FaCalendar, FaTrash, FaChartBar, FaDownload, FaFileExcel, FaUserSlash 
+  FaCalendar, FaTrash, FaChartBar, FaDownload, FaFileExcel, FaUserSlash, FaTable
 } from 'react-icons/fa';
 
 const AdminDashboard = () => {
@@ -28,6 +29,7 @@ const AdminDashboard = () => {
   const [showSearchModal, setShowSearchModal] = useState(false);
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [showDetainedModal, setShowDetainedModal] = useState(false);
+  const [showTimetableModal, setShowTimetableModal] = useState(false);
   const [file, setFile] = useState(null);
   const [year, setYear] = useState('');
   const [semester, setSemester] = useState('');
@@ -63,9 +65,10 @@ const AdminDashboard = () => {
     }
   }, [course]);
 
-  // ESC key handler to close upload modal
+  // ESC key handlers to close modals
   useEscapeKey(() => setShowUploadModal(false), showUploadModal);
   useEscapeKey(() => setShowDetainedModal(false), showDetainedModal);
+  useEscapeKey(() => setShowTimetableModal(false), showTimetableModal);
 
   const fetchDashboardStats = async () => {
     try {
@@ -355,6 +358,15 @@ const AdminDashboard = () => {
             color="red"
             onClick={() => setShowDetainedModal(true)}
           />
+
+          {/* Timetable Generator Card */}
+          <DashboardCard
+            title="Timetable Generator"
+            description="Auto-generate conflict-free class timetables using AI and constraint solving"
+            icon={<FaTable />}
+            color="green"
+            onClick={() => setShowTimetableModal(true)}
+          />
         </div>
 
         {/* Student History Section */}
@@ -635,6 +647,12 @@ const AdminDashboard = () => {
       <DetainedStudentsModal
         isOpen={showDetainedModal}
         onClose={() => setShowDetainedModal(false)}
+      />
+
+      {/* Timetable Generator Modal */}
+      <TimetableModal
+        isOpen={showTimetableModal}
+        onClose={() => setShowTimetableModal(false)}
       />
 
       {/* Toast Notification */}

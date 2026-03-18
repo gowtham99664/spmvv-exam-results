@@ -116,7 +116,7 @@ restore_database() {
 }
 
 # Main deployment
-echo -e "${BLUE}[1/10] Detecting deployment type...${NC}"
+echo -e "${BLUE}[1/11] Detecting deployment type...${NC}"
 
 BACKUP_FILE=""
 IS_REDEPLOYMENT=false
@@ -131,7 +131,7 @@ echo ""
 
 # Backup if redeployment
 if [ "$IS_REDEPLOYMENT" = true ]; then
-    echo -e "${BLUE}[2/10] Backing up existing data...${NC}"
+    echo -e "${BLUE}[2/11] Backing up existing data...${NC}"
     backup_database
     BACKUP_RESULT=$?
     
@@ -140,19 +140,19 @@ if [ "$IS_REDEPLOYMENT" = true ]; then
     fi
     echo ""
 else
-    echo -e "${BLUE}[2/10] Skipping backup (fresh deployment)${NC}"
+    echo -e "${BLUE}[2/11] Skipping backup (fresh deployment)${NC}"
     echo ""
 fi
 
 # Stop and remove old containers
-echo -e "${BLUE}[3/10] Stopping and removing old containers...${NC}"
-docker stop spmvv_backend spmvv_frontend spmvv_db 2>/dev/null || true
-docker rm -f spmvv_backend spmvv_frontend spmvv_db 2>/dev/null || true
+echo -e "${BLUE}[3/11] Stopping and removing old containers...${NC}"
+docker stop spmvv_backend spmvv_frontend spmvv_db spmvv_ollama 2>/dev/null || true
+docker rm -f spmvv_backend spmvv_frontend spmvv_db spmvv_ollama 2>/dev/null || true
 echo -e "${GREEN}✓ Old containers removed${NC}"
 echo ""
 
 # Stop any non-Docker services using ports
-echo -e "${BLUE}[4/10] Checking for port conflicts...${NC}"
+echo -e "${BLUE}[4/11] Checking for port conflicts...${NC}"
 pkill -f "manage.py runserver" 2>/dev/null || true
 pkill -f "vite" 2>/dev/null || true
 pkill -f "npm run dev" 2>/dev/null || true
@@ -168,13 +168,13 @@ echo -e "${GREEN}✓ Port conflicts resolved${NC}"
 echo ""
 
 # Create network
-echo -e "${BLUE}[5/10] Creating Docker network...${NC}"
+echo -e "${BLUE}[5/11] Creating Docker network...${NC}"
 docker network create spmvv_network 2>/dev/null || echo "Network already exists"
 echo -e "${GREEN}✓ Network ready${NC}"
 echo ""
 
 # Deploy Database
-echo -e "${BLUE}[6/10] Deploying database container...${NC}"
+echo -e "${BLUE}[6/11] Deploying database container...${NC}"
 docker run -d \
   --name spmvv_db \
   --network spmvv_network \
@@ -193,16 +193,46 @@ echo ""
 
 # Restore backup if exists
 if [ "$IS_REDEPLOYMENT" = true ] && [ -n "$BACKUP_FILE" ]; then
-    echo -e "${BLUE}[7/10] Restoring database from backup...${NC}"
+    echo -e "${BLUE}[7/11] Restoring database from backup...${NC}"
     restore_database "$BACKUP_FILE"
     echo ""
 else
-    echo -e "${BLUE}[7/10] No restore needed (fresh deployment)${NC}"
+    echo -e "${BLUE}[7/11] No restore needed (fresh deployment)${NC}"
     echo ""
 fi
 
+# Build and deploy Ollama (AI) container
+echo -e "${BLUE}[8/11] Building and deploying Ollama AI container...${NC}"
+cd "$PROJECT_DIR/ollama"
+
+# Only build if image does not already exist (model bake takes ~5-10 min)
+if docker image inspect spmvv-ollama:latest &>/dev/null; then
+    echo -e "${YELLOW}⚠ spmvv-ollama image already exists. Skipping build (model already baked in).${NC}"
+    echo -e "${CYAN}  To force a rebuild: docker rmi spmvv-ollama:latest && ./deploy_docker.sh${NC}"
+else
+    echo -e "${CYAN}Building Ollama image — this pulls qwen2.5:3b (~2 GB) and may take 5-10 minutes...${NC}"
+    if ! docker build -t spmvv-ollama . ; then
+        echo -e "${RED}✗ Ollama image build failed${NC}"
+        exit 1
+    fi
+    echo -e "${GREEN}✓ Ollama image built${NC}"
+fi
+
+echo -e "${CYAN}Starting Ollama container...${NC}"
+docker run -d \
+  --name spmvv_ollama \
+  --network spmvv_network \
+  -p 11434:11434 \
+  -e OLLAMA_HOST=0.0.0.0:11434 \
+  spmvv-ollama:latest
+
+echo -e "${CYAN}Waiting for Ollama to be ready (15 seconds)...${NC}"
+sleep 15
+echo -e "${GREEN}✓ Ollama container deployed${NC}"
+echo ""
+
 # Build and deploy Backend
-echo -e "${BLUE}[8/10] Building and deploying backend...${NC}"
+echo -e "${BLUE}[9/11] Building and deploying backend...${NC}"
 cd "$PROJECT_DIR/backend"
 
 echo -e "${CYAN}Building backend image (this may take 5-10 minutes)...${NC}"
@@ -229,6 +259,7 @@ docker run -d \
   -e ADMIN_USERNAME="$ADMIN_USERNAME" \
   -e ADMIN_DEFAULT_PASSWORD="$ADMIN_PASSWORD" \
   -e CORS_ALLOWED_ORIGINS="http://localhost:2026,http://$SERVER_IP:2026" \
+  -e OLLAMA_URL="http://spmvv_ollama:11434" \
   spmvv-backend:latest
 
 echo -e "${CYAN}Waiting for backend to initialize (20 seconds)...${NC}"
@@ -243,7 +274,7 @@ fi
 echo ""
 
 # Build and deploy Frontend
-echo -e "${BLUE}[9/10] Building and deploying frontend...${NC}"
+echo -e "${BLUE}[10/11] Building and deploying frontend...${NC}"
 cd "$PROJECT_DIR/frontend"
 
 # Stop any stuck builds
@@ -274,11 +305,12 @@ echo -e "${GREEN}✓ Frontend container deployed${NC}"
 echo ""
 
 # Configure firewall
-echo -e "${BLUE}[10/10] Configuring firewall...${NC}"
+echo -e "${BLUE}[11/11] Configuring firewall...${NC}"
 if systemctl is-active --quiet firewalld; then
     firewall-cmd --permanent --add-port=8000/tcp 2>/dev/null || true
     firewall-cmd --permanent --add-port=2026/tcp 2>/dev/null || true
     firewall-cmd --permanent --add-port=3306/tcp 2>/dev/null || true
+    firewall-cmd --permanent --add-port=11434/tcp 2>/dev/null || true
     firewall-cmd --reload 2>/dev/null || true
     echo -e "${GREEN}✓ Firewall configured${NC}"
 else
@@ -335,6 +367,7 @@ echo ""
 echo -e "${BLUE}Access Information:${NC}"
 echo -e "  Frontend: ${CYAN}http://$SERVER_IP:2026${NC}"
 echo -e "  Backend:  ${CYAN}http://$SERVER_IP:8000/api${NC}"
+echo -e "  Ollama:   ${CYAN}http://$SERVER_IP:11434${NC}"
 echo ""
 
 echo -e "${BLUE}Login Credentials:${NC}"
@@ -351,9 +384,9 @@ fi
 echo -e "${YELLOW}Important Commands:${NC}"
 echo -e "  Status:   ${CYAN}docker ps${NC}"
 echo -e "  Logs:     ${CYAN}docker logs -f spmvv_backend${NC}"
-echo -e "  Stop:     ${CYAN}docker stop spmvv_backend spmvv_frontend spmvv_db${NC}"
-echo -e "  Start:    ${CYAN}docker start spmvv_db && sleep 10 && docker start spmvv_backend spmvv_frontend${NC}"
+echo -e "  Stop:     ${CYAN}docker stop spmvv_backend spmvv_frontend spmvv_db spmvv_ollama${NC}"
+echo -e "  Start:    ${CYAN}docker start spmvv_db && sleep 10 && docker start spmvv_ollama && sleep 5 && docker start spmvv_backend spmvv_frontend${NC}"
 echo -e "  Redeploy: ${CYAN}./deploy_docker.sh${NC}"
 echo ""
 
-echo -e "${GREEN}🎉 Deployment complete! Access the application at http://$SERVER_IP:2026${NC}"
+echo -e "${GREEN}Deployment complete! Access the application at http://$SERVER_IP:2026${NC}"

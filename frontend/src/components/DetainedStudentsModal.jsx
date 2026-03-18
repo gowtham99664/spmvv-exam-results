@@ -13,12 +13,19 @@ const OPERATORS = [
 const YEARS     = ['1', '2', '3', '4'];
 const SEMESTERS = ['1', '2'];
 
+const MONTHS = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+];
+
 export default function DetainedStudentsModal({ isOpen, onClose }) {
   const [filters, setFilters] = useState({
     year: '',
     semester: '',
     credits: '',
     operator: 'lt',
+    exam_month: '',
+    exam_year: '',
   });
   const [results, setResults] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -43,13 +50,31 @@ export default function DetainedStudentsModal({ isOpen, onClose }) {
       setError('Please enter a valid numeric credits threshold.');
       return;
     }
+    // Both month and year must be provided together, or neither
+    const hasMonth = filters.exam_month.trim() !== '';
+    const hasYear  = filters.exam_year.trim() !== '';
+    if (hasMonth !== hasYear) {
+      setError('Please provide both Exam Month and Exam Year, or leave both blank.');
+      return;
+    }
+    if (hasYear && (isNaN(Number(filters.exam_year)) || filters.exam_year.trim().length !== 4)) {
+      setError('Exam Year must be a 4-digit number (e.g. 2025).');
+      return;
+    }
+
     setLoading(true);
     setError('');
     setResults(null);
     try {
-      const params = { credits: filters.credits, operator: filters.operator };
+      const params = {
+        credits:  filters.credits,
+        operator: filters.operator,
+      };
       if (filters.year)     params.year     = filters.year;
       if (filters.semester) params.semester = filters.semester;
+      if (hasMonth && hasYear) {
+        params.exam_month_year = `${filters.exam_month} ${filters.exam_year.trim()}`;
+      }
 
       const data = await detainedService.getDetainedStudents(params);
       setResults(data);
@@ -61,7 +86,7 @@ export default function DetainedStudentsModal({ isOpen, onClose }) {
   };
 
   const handleReset = () => {
-    setFilters({ year: '', semester: '', credits: '', operator: 'lt' });
+    setFilters({ year: '', semester: '', credits: '', operator: 'lt', exam_month: '', exam_year: '' });
     setResults(null);
     setError('');
   };
@@ -85,7 +110,7 @@ export default function DetainedStudentsModal({ isOpen, onClose }) {
       s.failed_subjects_count,
       `"${(s.failed_subjects || []).map(f => f.subject_name).join('; ')}"`,
     ]);
-    const csv = [header, ...rows].map((r) => r.join(',')).join('\n');
+    const csv  = [header, ...rows].map((r) => r.join(',')).join('\n');
     const blob = new Blob([csv], { type: 'text/csv' });
     const url  = URL.createObjectURL(blob);
     const a    = document.createElement('a');
@@ -97,9 +122,7 @@ export default function DetainedStudentsModal({ isOpen, onClose }) {
 
   if (!isOpen) return null;
 
-  const upToLabel    = results?.filters?.up_to_label ?? '';
-  const opLabel      = filters.operator;
-  const creditsVal   = filters.credits;
+  const upToLabel = results?.filters?.up_to_label ?? '';
 
   return (
     <div
@@ -114,7 +137,10 @@ export default function DetainedStudentsModal({ isOpen, onClose }) {
             <FaUserSlash className="text-red-600 text-xl" />
             <div>
               <h2 className="text-lg font-semibold text-gray-800">Detained Students</h2>
-              <p className="text-xs text-gray-500 mt-0.5">Credits are cumulative up to the selected year &amp; semester</p>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Only students who appeared in the selected year &amp; semester are shown.
+                Credits are cumulative up to that point.
+              </p>
             </div>
           </div>
           <button
@@ -129,13 +155,15 @@ export default function DetainedStudentsModal({ isOpen, onClose }) {
         {/* Filter Form */}
         <form onSubmit={handleSubmit} className="px-6 py-4 border-b border-gray-100 bg-gray-50">
           <p className="text-xs text-gray-500 mb-3">
-            Select <strong>Year</strong> and <strong>Semester</strong> as the upper boundary — all semesters up to that point will be included in the credit total.
+            Select <strong>Year</strong> and <strong>Semester</strong> — only students who appeared
+            in that semester are considered. Optionally pick an <strong>Exam Month</strong> and enter
+            an <strong>Exam Year</strong> to exclude supplementary or other sittings from the credit calculation.
           </p>
-          <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
 
             {/* Year */}
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Up to Year</label>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Year</label>
               <select name="year" value={filters.year} onChange={handleChange}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-400">
                 <option value="">All Years</option>
@@ -145,11 +173,37 @@ export default function DetainedStudentsModal({ isOpen, onClose }) {
 
             {/* Semester */}
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Up to Semester</label>              <select name="semester" value={filters.semester} onChange={handleChange}
+              <label className="block text-xs font-medium text-gray-600 mb-1">Semester</label>
+              <select name="semester" value={filters.semester} onChange={handleChange}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-400">
                 <option value="">All Semesters</option>
                 {SEMESTERS.map((s) => <option key={s} value={s}>Semester {s}</option>)}
               </select>
+            </div>
+
+            {/* Exam Month */}
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Exam Month</label>
+              <select name="exam_month" value={filters.exam_month} onChange={handleChange}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-400">
+                <option value="">Any Month</option>
+                {MONTHS.map((m) => <option key={m} value={m}>{m}</option>)}
+              </select>
+            </div>
+
+            {/* Exam Year */}
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Exam Year</label>
+              <input
+                type="number"
+                name="exam_year"
+                value={filters.exam_year}
+                onChange={handleChange}
+                placeholder="e.g. 2025"
+                min="2000"
+                max="2099"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-400"
+              />
             </div>
 
             {/* Operator */}
@@ -217,7 +271,10 @@ export default function DetainedStudentsModal({ isOpen, onClose }) {
                   </p>
                   {upToLabel && (
                     <p className="text-xs text-gray-400 mt-0.5">
-                      Credits summed up to: <span className="font-medium text-gray-600">{upToLabel}</span>
+                      Boundary: <span className="font-medium text-gray-600">{upToLabel}</span>
+                      {results.filters?.exam_month_year && results.filters.exam_month_year !== 'all' && (
+                        <> &nbsp;&bull;&nbsp; Exam: <span className="font-medium text-gray-600">{results.filters.exam_month_year}</span></>
+                      )}
                     </p>
                   )}
                 </div>
@@ -240,9 +297,9 @@ export default function DetainedStudentsModal({ isOpen, onClose }) {
                     <thead className="bg-gray-50 text-gray-500 uppercase text-xs tracking-wider">
                       <tr>
                         <th className="px-3 py-3 text-left">#</th>
-                         <th className="px-3 py-3 text-left">Roll No</th>
-                         <th className="px-3 py-3 text-left">Name</th>
-                         <th className="px-3 py-3 text-center">Earned Cr.</th>
+                        <th className="px-3 py-3 text-left">Roll No</th>
+                        <th className="px-3 py-3 text-left">Name</th>
+                        <th className="px-3 py-3 text-center">Earned Cr.</th>
                         <th className="px-3 py-3 text-center">Total Cr.</th>
                         <th className="px-3 py-3 text-center">Failed Subjs</th>
                         <th className="px-3 py-3 text-left">Failed Subject Names</th>
@@ -252,9 +309,9 @@ export default function DetainedStudentsModal({ isOpen, onClose }) {
                       {students.map((s, idx) => (
                         <tr key={s.roll_number + '-' + idx} className="hover:bg-red-50/40 transition-colors">
                           <td className="px-3 py-3 text-gray-400">{idx + 1}</td>
-                           <td className="px-3 py-3 font-mono font-medium text-gray-800">{s.roll_number}</td>
-                           <td className="px-3 py-3 text-gray-700 whitespace-nowrap">{s.student_name}</td>
-                           <td className="px-3 py-3 text-center">
+                          <td className="px-3 py-3 font-mono font-medium text-gray-800">{s.roll_number}</td>
+                          <td className="px-3 py-3 text-gray-700 whitespace-nowrap">{s.student_name}</td>
+                          <td className="px-3 py-3 text-center">
                             <span className="inline-block bg-red-100 text-red-700 font-semibold px-2 py-0.5 rounded-full">
                               {s.cumulative_earned_credits}
                             </span>
@@ -283,7 +340,9 @@ export default function DetainedStudentsModal({ isOpen, onClose }) {
             <div className="text-center py-12 text-gray-400">
               <FaUserSlash className="text-5xl mx-auto mb-4 opacity-20" />
               <p className="text-base">Set your filters and click <strong>Find Detained Students</strong>.</p>
-              <p className="text-xs mt-2 text-gray-300">Credits will be summed cumulatively up to the selected year &amp; semester.</p>
+              <p className="text-xs mt-2 text-gray-300">
+                Only students who appeared in the selected semester will be included.
+              </p>
             </div>
           )}
         </div>

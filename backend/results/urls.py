@@ -2,6 +2,7 @@ from django.urls import path
 from . import views
 from . import student_management
 from . import hall_ticket_views
+from . import timetable_views
 
 urlpatterns = [
     # Authentication endpoints
@@ -52,7 +53,14 @@ urlpatterns = [
 
     # Health check endpoint
     path('health/', views.health_check, name='health_check'),
+    path('timetable/generate/', timetable_views.generate_timetable, name='timetable_generate'),
+    path('timetable/download/', timetable_views.download_timetable, name='timetable_download'),
+    path('timetable/template/', timetable_views.timetable_sample_template, name='timetable_template'),
+    path('timetable/download-all/', timetable_views.download_all_timetable, name='timetable_download_all'),
+    path('timetable/download-faculty/', timetable_views.download_faculty_timetable, name='timetable_download_faculty'),
+    path('timetable/download-faculty-all/', timetable_views.download_all_faculty_timetables, name='timetable_download_faculty_all'),
     path('detained-students/', views.get_detained_students, name='detained_students'),
+    path('exam-month-years/', views.get_exam_month_years, name='exam_month_years'),
     path('profile/', views.student_profile, name='student_profile'),
     
     # ==================== HALL TICKET MANAGEMENT ====================

@@ -42,3 +42,7 @@ reportlab==4.1.0
 Pillow==10.2.0
 qrcode==7.4.2
 pandas==2.1.4
+
+# Timetable Generator
+ortools==9.10.4067
+requests==2.31.0

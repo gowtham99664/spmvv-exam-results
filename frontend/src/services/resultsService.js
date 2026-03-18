@@ -155,7 +155,7 @@ export const studentService = {
 // Detained Students service
 export const detainedService = {
   // Get detained students with filters
-  getDetainedStudents: async ({ year, semester, branch, course, credits, operator }) => {
+  getDetainedStudents: async ({ year, semester, branch, course, credits, operator, exam_month_year }) => {
     const params = new URLSearchParams();
     if (year) params.append('year', year);
     if (semester) params.append('semester', semester);
@@ -163,7 +163,13 @@ export const detainedService = {
     if (course && course !== 'all') params.append('course', course);
     params.append('credits', credits);
     params.append('operator', operator);
+    if (exam_month_year) params.append('exam_month_year', exam_month_year);
     const response = await api.get(`/detained-students/?${params.toString()}`);
+    return response.data;
+  },
+  // Get available exam month-years for filter dropdown
+  getExamMonthYears: async () => {
+    const response = await api.get('/exam-month-years/');
     return response.data;
   },
 };
