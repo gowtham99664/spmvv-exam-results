@@ -46,21 +46,70 @@ if errorlevel 1 (
 echo   - Docker Desktop is running
 echo.
 
-REM ---------------------------------------------------------------------------
-REM Resolve proxy hostname to IP so containers can reach it
-REM (containers cannot resolve proxy-wsa.esl.cisco.com via corporate DNS)
+REM =============================================================================
+REM Step 1: Detect fresh vs redeployment
+REM =============================================================================
+echo [STEP 1/9] Detecting deployment type...
+set IS_REDEPLOYMENT=false
+set BACKUP_FILE=
 
-REM Step 1: Cleanup
-echo [STEP 1/6] Cleaning up old containers...
-echo   - Stopping containers...
-docker stop %PROJECT_NAME%_backend %PROJECT_NAME%_frontend %PROJECT_NAME%_db %PROJECT_NAME%_ollama 2>nul
-echo   - Removing containers...
-docker rm -f %PROJECT_NAME%_backend %PROJECT_NAME%_frontend %PROJECT_NAME%_db %PROJECT_NAME%_ollama 2>nul
-echo   - Cleanup completed
+docker ps -a --format "{{.Names}}" 2>nul | findstr /i "%PROJECT_NAME%_db" >nul 2>&1
+if not errorlevel 1 set IS_REDEPLOYMENT=true
+
+docker ps -a --format "{{.Names}}" 2>nul | findstr /i "%PROJECT_NAME%_backend" >nul 2>&1
+if not errorlevel 1 set IS_REDEPLOYMENT=true
+
+if "%IS_REDEPLOYMENT%"=="true" (
+    echo   - Existing deployment detected. This is a REDEPLOYMENT.
+) else (
+    echo   - No existing containers found. This is a FRESH deployment.
+)
 echo.
 
-REM Step 2: Network
-echo [STEP 2/6] Setting up Docker network...
+REM =============================================================================
+REM Step 2: Backup database if redeploying
+REM =============================================================================
+echo [STEP 2/9] Database backup...
+if "%IS_REDEPLOYMENT%"=="false" goto :skip_backup
+
+docker ps --format "{{.Names}}" 2>nul | findstr /i "%PROJECT_NAME%_db" >nul 2>&1
+if errorlevel 1 (
+    echo   - Database container not running. Skipping backup.
+    goto :skip_backup
+)
+
+echo   - Backing up existing database...
+if not exist "%PROJECT_DIR%\backups" mkdir "%PROJECT_DIR%\backups"
+
+REM Generate timestamp for backup filename
+for /f "tokens=2 delims==" %%I in ('wmic os get localdatetime /value') do set dt=%%I
+set BACKUP_FILE=%PROJECT_DIR%\backups\db_backup_%dt:~0,14%.sql
+
+docker exec %PROJECT_NAME%_db mysqldump -u %DB_USER% -p%DB_PASSWORD% %DB_NAME% > "%BACKUP_FILE%" 2>nul
+if errorlevel 1 (
+    echo   - WARNING: Backup failed. Continuing without backup.
+    set BACKUP_FILE=
+) else (
+    echo   - Database backed up to: %BACKUP_FILE%
+)
+
+:skip_backup
+echo   - Backup step complete
+echo.
+
+REM =============================================================================
+REM Step 3: Stop and remove old containers
+REM =============================================================================
+echo [STEP 3/9] Cleaning up old containers...
+docker stop %PROJECT_NAME%_backend %PROJECT_NAME%_frontend %PROJECT_NAME%_db %PROJECT_NAME%_ollama 2>nul
+docker rm -f %PROJECT_NAME%_backend %PROJECT_NAME%_frontend %PROJECT_NAME%_db %PROJECT_NAME%_ollama 2>nul
+echo   - Old containers removed
+echo.
+
+REM =============================================================================
+REM Step 4: Network
+REM =============================================================================
+echo [STEP 4/9] Setting up Docker network...
 docker network inspect %PROJECT_NAME%_network >nul 2>&1
 if errorlevel 1 (
     echo   - Creating network...
@@ -71,9 +120,10 @@ if errorlevel 1 (
 echo   - Network ready
 echo.
 
-REM Step 3: Database
-echo [STEP 3/6] Deploying database...
-echo   - Starting MariaDB container...
+REM =============================================================================
+REM Step 5: Database
+REM =============================================================================
+echo [STEP 5/9] Deploying database...
 docker run -d --name %PROJECT_NAME%_db ^
   --network %PROJECT_NAME%_network ^
   -e MYSQL_ROOT_PASSWORD=%MYSQL_ROOT_PASSWORD% ^
@@ -90,27 +140,44 @@ if errorlevel 1 (
     exit /b 1
 )
 
-echo   - Waiting for database initialization (30 seconds)...
+echo   - Waiting for database to initialize (30 seconds)...
 timeout /t 30 /nobreak >nul
+
+REM Restore backup if redeploying
+if "%IS_REDEPLOYMENT%"=="false" goto :skip_restore
+if "%BACKUP_FILE%"=="" goto :skip_restore
+
+echo   - Restoring database from backup...
+docker exec -i %PROJECT_NAME%_db mysql -u %DB_USER% -p%DB_PASSWORD% %DB_NAME% < "%BACKUP_FILE%"
+if errorlevel 1 (
+    echo   - WARNING: Restore failed. Database will start fresh.
+) else (
+    echo   - Database restored successfully
+)
+
+:skip_restore
 echo   - Database ready
 echo.
 
-REM Step 4: Ollama AI container
-echo [STEP 4/6] Deploying Ollama AI container...
+REM =============================================================================
+REM Step 6: Ollama AI container
+REM =============================================================================
+echo [STEP 6/9] Deploying Ollama AI container...
 cd /d "%PROJECT_DIR%\ollama"
 
 if not exist "Dockerfile" (
-    echo ERROR: Ollama Dockerfile not found!
-    echo Expected location: %PROJECT_DIR%\ollama\Dockerfile
+    echo ERROR: Ollama Dockerfile not found at %PROJECT_DIR%\ollama\Dockerfile
     pause
     exit /b 1
 )
 
-REM Only build if image does not already exist (model bake takes ~5-10 min)
 docker image inspect %PROJECT_NAME%-ollama:latest >nul 2>&1
-if not errorlevel 1 goto :ollama_image_exists
-echo   - Building Ollama image...
-echo   - NOTE: This pulls qwen2.5:3b (~2 GB) and may take 5-10 minutes...
+if not errorlevel 1 (
+    echo   - Ollama image already exists. Skipping build.
+    goto :ollama_done
+)
+
+echo   - Building Ollama image (downloads qwen2.5:3b ~2GB, may take 5-10 min)...
 docker build -t %PROJECT_NAME%-ollama .
 if errorlevel 1 (
     echo ERROR: Ollama image build failed!
@@ -118,13 +185,8 @@ if errorlevel 1 (
     exit /b 1
 )
 echo   - Ollama image built
-goto :ollama_image_done
-:ollama_image_exists
-echo   - Ollama image already exists. Skipping build.
-echo   - To force rebuild: docker rmi %PROJECT_NAME%-ollama:latest and re-run.
-:ollama_image_done
 
-echo   - Starting Ollama container...
+:ollama_done
 docker run -d --name %PROJECT_NAME%_ollama ^
   --network %PROJECT_NAME%_network ^
   -p 11434:11434 ^
@@ -142,32 +204,31 @@ timeout /t 15 /nobreak >nul
 echo   - Ollama ready
 echo.
 
-REM Step 5: Backend
-echo [STEP 5/6] Deploying backend...
+REM =============================================================================
+REM Step 7: Backend
+REM =============================================================================
+echo [STEP 7/9] Deploying backend...
 cd /d "%PROJECT_DIR%\backend"
 
 if not exist "Dockerfile" (
-    echo ERROR: Backend Dockerfile not found!
-    echo Expected location: %PROJECT_DIR%\backend\Dockerfile
+    echo ERROR: Backend Dockerfile not found at %PROJECT_DIR%\backend\Dockerfile
     pause
     exit /b 1
 )
 
 echo   - Building backend image...
-docker build -t %PROJECT_NAME%-backend . 2>nul
-if not errorlevel 1 goto :backend_build_done
-echo   - Build failed, retrying with verbose output...
 docker build -t %PROJECT_NAME%-backend .
 if errorlevel 1 (
     echo ERROR: Backend build failed!
     pause
     exit /b 1
 )
-:backend_build_done
 
 echo   - Starting backend container...
 docker run -d --name %PROJECT_NAME%_backend ^
   --network %PROJECT_NAME%_network ^
+  -p 8000:8000 ^
+  -v %PROJECT_NAME%_media_data:/app/media ^
   -e SECRET_KEY=django-insecure-docker-windows ^
   -e DEBUG=True ^
   -e ALLOWED_HOSTS=localhost,127.0.0.1 ^
@@ -179,10 +240,10 @@ docker run -d --name %PROJECT_NAME%_backend ^
   -e DB_PORT=3306 ^
   -e ADMIN_USERNAME=%ADMIN_USERNAME% ^
   -e ADMIN_DEFAULT_PASSWORD=%ADMIN_PASSWORD% ^
+  -e CORS_ALLOWED_ORIGINS=http://localhost:2026,http://127.0.0.1:2026 ^
   -e CORS_EXTRA_ORIGINS=http://localhost:2026,http://127.0.0.1:2026 ^
   -e CSRF_EXTRA_ORIGINS=http://localhost:2026,http://127.0.0.1:2026 ^
   -e OLLAMA_URL=http://%PROJECT_NAME%_ollama:11434 ^
-  -p 8000:8000 ^
   %PROJECT_NAME%-backend:latest
 
 if errorlevel 1 (
@@ -191,50 +252,104 @@ if errorlevel 1 (
     exit /b 1
 )
 
-echo   - Waiting for migrations (15 seconds)...
-timeout /t 15 /nobreak >nul
+echo   - Waiting for migrations (20 seconds)...
+timeout /t 20 /nobreak >nul
 echo   - Backend ready
 echo.
 
-REM Step 6: Frontend
-echo [STEP 6/6] Deploying frontend...
+REM =============================================================================
+REM Step 8: Frontend
+REM =============================================================================
+echo [STEP 8/9] Deploying frontend...
 cd /d "%PROJECT_DIR%\frontend"
 
 if not exist "Dockerfile" (
-    echo ERROR: Frontend Dockerfile not found!
-    echo Expected location: %PROJECT_DIR%\frontend\Dockerfile
+    echo ERROR: Frontend Dockerfile not found at %PROJECT_DIR%\frontend\Dockerfile
     pause
     exit /b 1
 )
 
 echo   - Building frontend image (this may take 5-10 minutes)...
-echo   - Please be patient, npm install downloads many packages...
-
-set BUILD_START_TIME=%time%
-
-docker build -t %PROJECT_NAME%-frontend . 2>nul
-if not errorlevel 1 goto :frontend_build_done
-echo   - First attempt failed, retrying without cache...
-docker build --no-cache -t %PROJECT_NAME%-frontend .
+docker build --build-arg VITE_API_URL=/api -t %PROJECT_NAME%-frontend .
 if errorlevel 1 (
     echo ERROR: Frontend build failed!
     echo.
     echo Common issues:
-    echo   - Not enough memory allocated to Docker Desktop
+    echo   - Not enough memory (increase Docker Desktop memory to 4GB+)
     echo   - Network issues downloading npm packages
-    echo   - Missing dependencies in package.json
-    echo.
-    echo Try:
-    echo   1. Increase Docker Desktop memory to 4GB or more
-    echo   2. Check your internet connection
-    echo   3. Run: docker system prune -a
+    echo   - Try: docker system prune -a  then re-run
     pause
     exit /b 1
 )
-:frontend_build_done
 
 echo   - Starting frontend container...
 docker run -d --name %PROJECT_NAME%_frontend ^
   --network %PROJECT_NAME%_network ^
   -p 2026:2026 ^
-  %PROJECT_NAME%-fro
+  %PROJECT_NAME%-frontend:latest
+
+if errorlevel 1 (
+    echo ERROR: Failed to start frontend container
+    pause
+    exit /b 1
+)
+
+echo   - Waiting for startup (10 seconds)...
+timeout /t 10 /nobreak >nul
+echo   - Frontend ready
+echo.
+
+REM =============================================================================
+REM Step 9: Verification
+REM =============================================================================
+echo [STEP 9/9] Verifying deployment...
+
+echo   - Checking containers...
+docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | findstr %PROJECT_NAME%
+echo.
+
+echo   - Testing backend API...
+curl -s -o nul -w "     Backend API: HTTP %%{http_code}" http://localhost:8000/api/login/ 2>nul
+echo.
+
+echo   - Testing frontend...
+curl -s -o nul -w "     Frontend:    HTTP %%{http_code}" http://localhost:2026/ 2>nul
+echo.
+echo.
+
+REM =============================================================================
+REM Deployment Summary
+REM =============================================================================
+echo ===============================================================================
+echo                         DEPLOYMENT COMPLETED
+echo ===============================================================================
+echo.
+echo Access Information:
+echo   Frontend URL:  http://localhost:2026
+echo   Backend API:   http://localhost:8000/api
+echo   Admin Panel:   http://localhost:8000/admin
+echo   Ollama API:    http://localhost:11434
+echo.
+echo Login Credentials:
+echo   Username:  %ADMIN_USERNAME%
+echo   Password:  %ADMIN_PASSWORD%
+echo.
+if not "%BACKUP_FILE%"=="" (
+    echo Backup saved to: %BACKUP_FILE%
+    echo.
+)
+echo ===============================================================================
+echo.
+echo Useful Commands:
+echo   Check status:  docker ps
+echo   Backend logs:  docker logs -f %PROJECT_NAME%_backend
+echo   Frontend logs: docker logs -f %PROJECT_NAME%_frontend
+echo   Stop all:      docker stop %PROJECT_NAME%_db %PROJECT_NAME%_ollama %PROJECT_NAME%_backend %PROJECT_NAME%_frontend
+echo   Start all:     docker start %PROJECT_NAME%_db && timeout /t 10 && docker start %PROJECT_NAME%_ollama %PROJECT_NAME%_backend %PROJECT_NAME%_frontend
+echo.
+echo ===============================================================================
+echo Deployment completed at: %date% %time%
+echo ===============================================================================
+echo.
+
+pause
