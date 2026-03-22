@@ -181,19 +181,17 @@ const Login = () => {
             </button>
           </form>
 
-          {userType === 'student' && (
-            <div className="mt-6 text-center">
-              <p className="text-sm text-gray-600">
-                Don't have an account?{' '}
-                <Link
-                  to="/register"
-                  className="text-primary-600 hover:text-primary-700 font-medium"
-                >
-                  Register here
-                </Link>
-              </p>
-            </div>
-          )}
+          <div className="mt-6 text-center" style={{ visibility: userType === 'student' ? 'visible' : 'hidden' }}>
+            <p className="text-sm text-gray-600">
+              Don't have an account?{' '}
+              <Link
+                to="/register"
+                className="text-primary-600 hover:text-primary-700 font-medium"
+              >
+                Register here
+              </Link>
+            </p>
+          </div>
         </div>
       </div>
     </div>

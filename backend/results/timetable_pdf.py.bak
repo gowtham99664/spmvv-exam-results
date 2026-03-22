@@ -15,17 +15,9 @@ from reportlab.platypus import (
 )
 from reportlab.lib.enums import TA_CENTER, TA_LEFT
 
-HEADER_BG = colors.HexColor("#1e3a5f")
-HEADER_FG = colors.white
-DAY_HDR_BG = colors.HexColor("#2d6a9f")
-DAY_HDR_FG = colors.white
-BREAK_BG = colors.HexColor("#f5e6c8")
-LUNCH_BG = colors.HexColor("#fce8b2")
-LAB_BG = colors.HexColor("#fff3cd")
-ALT_ROW_BG = colors.HexColor("#f5f5f5")
-BORDER_CLR = colors.HexColor("#b0bec5")
-LEGEND_HDR = colors.HexColor("#37474f")
-LEGEND_FG = colors.white
+# All color fills removed — black text on white background throughout.
+HEADER_BG = colors.HexColor("#1e3a5f")  # kept only for HR line and text accents
+BORDER_CLR = colors.HexColor("#888888")
 SIG_LINE = colors.HexColor("#555555")
 
 
@@ -47,6 +39,18 @@ def _build_column_slots(config):
 
     cols = []
     tidx = 0
+    # short_breaks new-style: list of {after_period: N (0-based), duration: M}
+    short_breaks_list = config.get("short_breaks", [])
+    break_map = {}
+    for b in short_breaks_list:
+        ap = b.get("after_period")
+        dur = b.get("duration", 10)
+        if ap is not None:
+            break_map[int(ap)] = int(dur)
+    # Legacy single break fallback
+    if not break_map and short_break_after is not None:
+        break_map[short_break_after] = short_break_minutes
+
     for p in range(periods_per_day):
         s, e = cur, cur + period_minutes
         cols.append(
@@ -59,15 +63,16 @@ def _build_column_slots(config):
         cur += period_minutes
         tidx += 1
 
-        if short_break_after is not None and p == short_break_after:
-            bs, be = cur, cur + short_break_minutes
+        if p in break_map:
+            bDur = break_map[p]
+            bs, be = cur, cur + bDur
             cols.append(
                 {
                     "kind": "break",
                     "title": "SHORT\nBREAK\n{}-{}".format(fmt(bs), fmt(be)),
                 }
             )
-            cur += short_break_minutes
+            cur += bDur
 
         if lunch_after is not None and p == lunch_after:
             ls, le = cur, cur + lunch_minutes
@@ -101,85 +106,81 @@ def _section_story(config, solution, section, metadata, col_slots=None):
 
     title_st = _ps(
         "ts",
-        fontSize=13,
+        fontSize=16,
         fontName="Helvetica-Bold",
-        textColor=HEADER_BG,
+        textColor=colors.black,
         alignment=TA_CENTER,
         spaceAfter=2,
     )
     sub_st = _ps(
         "ss",
-        fontSize=9,
+        fontSize=11,
         fontName="Helvetica",
-        textColor=colors.HexColor("#444444"),
+        textColor=colors.black,
         alignment=TA_CENTER,
         spaceAfter=4,
     )
     hdr_day = _ps(
         "hd",
-        fontSize=8,
+        fontSize=11,
         fontName="Helvetica-Bold",
-        textColor=DAY_HDR_FG,
+        textColor=colors.black,
         alignment=TA_CENTER,
-        leading=10,
+        leading=13,
     )
     hdr_time = _ps(
         "ht",
-        fontSize=6,
+        fontSize=9,
         fontName="Helvetica-Bold",
-        textColor=colors.HexColor("#1e3a5f"),
+        textColor=colors.black,
         alignment=TA_CENTER,
-        leading=7,
+        leading=11,
     )
     cell_norm = _ps(
-        "cn",
-        fontSize=7,
-        alignment=TA_CENTER,
-        leading=9,
-        textColor=colors.HexColor("#212121"),
+        "cn", fontSize=10, alignment=TA_CENTER, leading=12, textColor=colors.black
     )
     cell_it = _ps(
         "ci",
-        fontSize=7,
+        fontSize=10,
         fontName="Helvetica-Oblique",
         alignment=TA_CENTER,
-        leading=9,
-        textColor=colors.HexColor("#666666"),
+        leading=12,
+        textColor=colors.black,
     )
     cell_bold = _ps(
         "cb",
-        fontSize=7,
+        fontSize=10,
         fontName="Helvetica-Bold",
         alignment=TA_CENTER,
-        leading=9,
-        textColor=colors.HexColor("#212121"),
+        leading=12,
+        textColor=colors.black,
     )
     cell_brk = _ps(
         "cbr",
-        fontSize=6,
+        fontSize=9,
         fontName="Helvetica-Bold",
         alignment=TA_CENTER,
-        leading=8,
-        textColor=colors.HexColor("#7b5800"),
+        leading=10,
+        textColor=colors.black,
     )
     leg_hdr_st = _ps(
         "lhdr",
-        fontSize=10,
+        fontSize=12,
         fontName="Helvetica-Bold",
-        textColor=LEGEND_HDR,
+        textColor=colors.black,
         alignment=TA_LEFT,
         spaceBefore=4,
         spaceAfter=4,
     )
     sig_bold = _ps(
         "sgb",
-        fontSize=9,
+        fontSize=11,
         fontName="Helvetica-Bold",
-        textColor=colors.HexColor("#1e3a5f"),
+        textColor=colors.black,
         alignment=TA_CENTER,
     )
     footer_st = _ps(
-        "ft", fontSize=7, textColor=colors.grey, alignment=TA_CENTER, spaceBefore=6
+        "ft", fontSize=8, textColor=colors.grey, alignment=TA_CENTER, spaceBefore=6
     )
 
     # ---- Header ----
@@ -195,7 +196,9 @@ def _section_story(config, solution, section, metadata, col_slots=None):
             sub_st,
         )
     )
-    story.append(HRFlowable(width="100%", thickness=1.5, color=HEADER_BG, spaceAfter=6))
+    story.append(
+        HRFlowable(width="100%", thickness=1.5, color=colors.black, spaceAfter=6)
+    )
 
     # ---- Build grid ----
     header_row = [Paragraph("DAY/TIME", hdr_day)]
@@ -227,9 +230,9 @@ def _section_story(config, solution, section, metadata, col_slots=None):
 
     # ---- Column widths ----
     page_w = landscape(A4)[0] - 3 * cm
-    day_col_w = 1.3 * cm
-    break_col_w = 1.2 * cm
-    lunch_col_w = 1.6 * cm
+    day_col_w = 1.5 * cm
+    break_col_w = 1.4 * cm
+    lunch_col_w = 1.8 * cm
     n_break = sum(1 for cs in col_slots if cs["kind"] == "break")
     n_lunch = sum(1 for cs in col_slots if cs["kind"] == "lunch")
     n_period = sum(1 for cs in col_slots if cs["kind"] == "period")
@@ -248,36 +251,20 @@ def _section_story(config, solution, section, metadata, col_slots=None):
     tbl = Table(table_data, colWidths=col_widths, repeatRows=1)
 
     cmds = [
-        ("BACKGROUND", (0, 0), (-1, 0), DAY_HDR_BG),
-        ("TEXTCOLOR", (0, 0), (-1, 0), DAY_HDR_FG),
-        ("BACKGROUND", (0, 1), (0, -1), DAY_HDR_BG),
-        ("TEXTCOLOR", (0, 1), (0, -1), DAY_HDR_FG),
         ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("FONTNAME", (0, 1), (0, -1), "Helvetica-Bold"),
         ("ALIGN", (0, 0), (-1, -1), "CENTER"),
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-        ("GRID", (0, 0), (-1, -1), 0.4, BORDER_CLR),
-        ("TOPPADDING", (0, 0), (-1, -1), 3),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
-        ("LEFTPADDING", (0, 0), (-1, -1), 2),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 2),
-        ("FONTSIZE", (1, 1), (-1, -1), 7),
+        ("GRID", (0, 0), (-1, -1), 0.5, BORDER_CLR),
+        ("TOPPADDING", (0, 0), (-1, -1), 4),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        ("LEFTPADDING", (0, 0), (-1, -1), 3),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 3),
+        ("FONTSIZE", (0, 0), (-1, -1), 10),
+        ("TEXTCOLOR", (0, 0), (-1, -1), colors.black),
+        # Slightly thicker outer border
+        ("BOX", (0, 0), (-1, -1), 1.0, colors.black),
     ]
-
-    for ci, cs in enumerate(col_slots, start=1):
-        if cs["kind"] == "break":
-            cmds.append(("BACKGROUND", (ci, 0), (ci, -1), BREAK_BG))
-        elif cs["kind"] == "lunch":
-            cmds.append(("BACKGROUND", (ci, 0), (ci, -1), LUNCH_BG))
-        else:
-            pp = cs["period_idx"]
-            for d in range(working_days):
-                si = solution.get((d, pp))
-                if si and not si.get("is_lab_cont") and si.get("type") == "lab":
-                    cmds.append(("BACKGROUND", (ci, d + 1), (ci, d + 1), LAB_BG))
-
-    for d in range(working_days):
-        if d % 2 == 1:
-            cmds.append(("BACKGROUND", (1, d + 1), (-1, d + 1), ALT_ROW_BG))
 
     tbl.setStyle(TableStyle(cmds))
     story.append(tbl)
@@ -287,7 +274,7 @@ def _section_story(config, solution, section, metadata, col_slots=None):
     story.append(Paragraph("Subject Details", leg_hdr_st))
 
     def lps(nm, **kw):
-        return _ps(nm, fontSize=8, **kw)
+        return _ps(nm, fontSize=10, **kw)
 
     leg_hrow = [
         Paragraph(
@@ -295,7 +282,7 @@ def _section_story(config, solution, section, metadata, col_slots=None):
             lps(
                 "lh1",
                 fontName="Helvetica-Bold",
-                textColor=LEGEND_FG,
+                textColor=colors.black,
                 alignment=TA_CENTER,
             ),
         ),
@@ -304,7 +291,7 @@ def _section_story(config, solution, section, metadata, col_slots=None):
             lps(
                 "lh2",
                 fontName="Helvetica-Bold",
-                textColor=LEGEND_FG,
+                textColor=colors.black,
                 alignment=TA_CENTER,
             ),
         ),
@@ -313,7 +300,7 @@ def _section_story(config, solution, section, metadata, col_slots=None):
             lps(
                 "lh3",
                 fontName="Helvetica-Bold",
-                textColor=LEGEND_FG,
+                textColor=colors.black,
                 alignment=TA_CENTER,
             ),
         ),
@@ -322,7 +309,7 @@ def _section_story(config, solution, section, metadata, col_slots=None):
             lps(
                 "lh4",
                 fontName="Helvetica-Bold",
-                textColor=LEGEND_FG,
+                textColor=colors.black,
                 alignment=TA_CENTER,
             ),
         ),
@@ -354,18 +341,18 @@ def _section_story(config, solution, section, metadata, col_slots=None):
                     sno += 1
 
     leg_total = landscape(A4)[0] - 3 * cm
-    lcw = [0.8 * cm, 3.0 * cm, 9.0 * cm, leg_total - 0.8 * cm - 3.0 * cm - 9.0 * cm]
+    lcw = [0.9 * cm, 3.2 * cm, 9.0 * cm, leg_total - 0.9 * cm - 3.2 * cm - 9.0 * cm]
     ltbl = Table(legend_rows, colWidths=lcw, repeatRows=1)
     ltbl.setStyle(
         TableStyle(
             [
-                ("BACKGROUND", (0, 0), (-1, 0), LEGEND_HDR),
-                ("TEXTCOLOR", (0, 0), (-1, 0), LEGEND_FG),
-                ("FONTSIZE", (0, 0), (-1, -1), 8),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("FONTSIZE", (0, 0), (-1, -1), 10),
+                ("TEXTCOLOR", (0, 0), (-1, -1), colors.black),
                 ("ALIGN", (0, 0), (-1, -1), "LEFT"),
                 ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-                ("GRID", (0, 0), (-1, -1), 0.4, BORDER_CLR),
-                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, ALT_ROW_BG]),
+                ("GRID", (0, 0), (-1, -1), 0.5, BORDER_CLR),
+                ("BOX", (0, 0), (-1, -1), 1.0, colors.black),
                 ("TOPPADDING", (0, 0), (-1, -1), 3),
                 ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
                 ("LEFTPADDING", (0, 0), (-1, -1), 3),
@@ -398,7 +385,6 @@ def _section_story(config, solution, section, metadata, col_slots=None):
         )
     )
     story.append(stbl)
-
     story.append(Spacer(1, 0.2 * cm))
     story.append(
         Paragraph(
@@ -464,12 +450,11 @@ def generate_all_timetables_pdf(config, full_solution, groups, college_name):
     return buf
 
 
-def generate_faculty_timetable_pdf(config, faculty_solution, faculty_name, college_name):
+def generate_faculty_timetable_pdf(
+    config, faculty_solution, faculty_name, college_name
+):
     """
     Generate a personal timetable PDF for a single faculty member.
-
-    faculty_solution: { (day, period): { section, subject_code, subject_name,
-                                         type, is_lab_cont, faculty_2 } }
     Returns BytesIO.
     """
     buf = BytesIO()
@@ -481,38 +466,81 @@ def generate_faculty_timetable_pdf(config, faculty_solution, faculty_name, colle
         topMargin=1.5 * cm,
         bottomMargin=1.5 * cm,
     )
-
-    working_days   = config["working_days"]
-    col_slots      = _build_column_slots(config)
-
+    col_slots = _build_column_slots(config)
+    working_days = config["working_days"]
     story = []
 
-    title_st = _ps("fts", fontSize=13, fontName="Helvetica-Bold",
-                   textColor=HEADER_BG, alignment=TA_CENTER, spaceAfter=2)
-    sub_st   = _ps("fss", fontSize=9, fontName="Helvetica",
-                   textColor=colors.HexColor("#444444"), alignment=TA_CENTER, spaceAfter=4)
-    hdr_day  = _ps("fhd", fontSize=8, fontName="Helvetica-Bold",
-                   textColor=DAY_HDR_FG, alignment=TA_CENTER, leading=10)
-    hdr_time = _ps("fht", fontSize=6, fontName="Helvetica-Bold",
-                   textColor=colors.HexColor("#1e3a5f"), alignment=TA_CENTER, leading=7)
-    cell_n   = _ps("fcn", fontSize=7, alignment=TA_CENTER, leading=9,
-                   textColor=colors.HexColor("#212121"))
-    cell_it  = _ps("fci", fontSize=7, fontName="Helvetica-Oblique",
-                   alignment=TA_CENTER, leading=9, textColor=colors.HexColor("#666666"))
-    cell_b   = _ps("fcb", fontSize=7, fontName="Helvetica-Bold",
-                   alignment=TA_CENTER, leading=9, textColor=colors.HexColor("#212121"))
-    cell_brk = _ps("fcbr", fontSize=6, fontName="Helvetica-Bold",
-                   alignment=TA_CENTER, leading=8, textColor=colors.HexColor("#7b5800"))
-    footer_st = _ps("fft", fontSize=7, textColor=colors.grey,
-                    alignment=TA_CENTER, spaceBefore=6)
+    title_st = _ps(
+        "fts",
+        fontSize=16,
+        fontName="Helvetica-Bold",
+        textColor=colors.black,
+        alignment=TA_CENTER,
+        spaceAfter=2,
+    )
+    sub_st = _ps(
+        "fss",
+        fontSize=11,
+        fontName="Helvetica",
+        textColor=colors.black,
+        alignment=TA_CENTER,
+        spaceAfter=4,
+    )
+    hdr_day = _ps(
+        "fhd",
+        fontSize=11,
+        fontName="Helvetica-Bold",
+        textColor=colors.black,
+        alignment=TA_CENTER,
+        leading=13,
+    )
+    hdr_time = _ps(
+        "fht",
+        fontSize=9,
+        fontName="Helvetica-Bold",
+        textColor=colors.black,
+        alignment=TA_CENTER,
+        leading=11,
+    )
+    cell_n = _ps(
+        "fcn", fontSize=10, alignment=TA_CENTER, leading=12, textColor=colors.black
+    )
+    cell_it = _ps(
+        "fci",
+        fontSize=10,
+        fontName="Helvetica-Oblique",
+        alignment=TA_CENTER,
+        leading=12,
+        textColor=colors.black,
+    )
+    cell_b = _ps(
+        "fcb",
+        fontSize=10,
+        fontName="Helvetica-Bold",
+        alignment=TA_CENTER,
+        leading=12,
+        textColor=colors.black,
+    )
+    cell_brk = _ps(
+        "fcbr",
+        fontSize=9,
+        fontName="Helvetica-Bold",
+        alignment=TA_CENTER,
+        leading=10,
+        textColor=colors.black,
+    )
+    footer_st = _ps(
+        "fft", fontSize=8, textColor=colors.grey, alignment=TA_CENTER, spaceBefore=6
+    )
 
     story.append(Paragraph(college_name, title_st))
-    story.append(Paragraph(
-        "Faculty Timetable — <b>{}</b>".format(faculty_name), sub_st
-    ))
-    story.append(HRFlowable(width="100%", thickness=1.5, color=HEADER_BG, spaceAfter=6))
+    story.append(
+        Paragraph("Faculty Timetable — <b>{}</b>".format(faculty_name), sub_st)
+    )
+    story.append(
+        HRFlowable(width="100%", thickness=1.5, color=colors.black, spaceAfter=6)
+    )
 
-    # Header row
     header_row = [Paragraph("DAY/TIME", hdr_day)]
     for cs in col_slots:
         if cs["kind"] == "period":
@@ -527,7 +555,7 @@ def generate_faculty_timetable_pdf(config, faculty_solution, faculty_name, colle
             if cs["kind"] in ("break", "lunch"):
                 row.append(Paragraph("", cell_n))
                 continue
-            p  = cs["period_idx"]
+            p = cs["period_idx"]
             si = faculty_solution.get((d, p))
             if si is None:
                 row.append(Paragraph("", cell_n))
@@ -535,26 +563,26 @@ def generate_faculty_timetable_pdf(config, faculty_solution, faculty_name, colle
                 row.append(Paragraph("(cont.)", cell_it))
             else:
                 stype = si.get("type", "theory")
-                sec   = si.get("section", "")
+                sec = si.get("section", "")
                 sname = si.get("subject_name", "")
                 scode = si.get("subject_code", "")
-                if stype == "lab":
-                    txt = "LAB\n{}\n(Sec {})".format(scode, sec)
-                else:
-                    txt = "{}\n(Sec {})".format(sname, sec)
+                txt = (
+                    "LAB\n{}\n(Sec {})".format(scode, sec)
+                    if stype == "lab"
+                    else "{}\n(Sec {})".format(sname, sec)
+                )
                 row.append(Paragraph(txt, cell_b))
         table_data.append(row)
 
-    # Column widths
-    page_w      = landscape(A4)[0] - 3 * cm
-    day_col_w   = 1.3 * cm
-    break_col_w = 1.2 * cm
-    lunch_col_w = 1.6 * cm
-    n_break  = sum(1 for cs in col_slots if cs["kind"] == "break")
-    n_lunch  = sum(1 for cs in col_slots if cs["kind"] == "lunch")
+    page_w = landscape(A4)[0] - 3 * cm
+    day_col_w = 1.5 * cm
+    break_col_w = 1.4 * cm
+    lunch_col_w = 1.8 * cm
+    n_break = sum(1 for cs in col_slots if cs["kind"] == "break")
+    n_lunch = sum(1 for cs in col_slots if cs["kind"] == "lunch")
     n_period = sum(1 for cs in col_slots if cs["kind"] == "period")
-    remain   = page_w - day_col_w - n_break * break_col_w - n_lunch * lunch_col_w
-    per_w    = remain / max(n_period, 1)
+    remain = page_w - day_col_w - n_break * break_col_w - n_lunch * lunch_col_w
+    per_w = remain / max(n_period, 1)
 
     col_widths = [day_col_w]
     for cs in col_slots:
@@ -566,64 +594,105 @@ def generate_faculty_timetable_pdf(config, faculty_solution, faculty_name, colle
             col_widths.append(lunch_col_w)
 
     tbl = Table(table_data, colWidths=col_widths, repeatRows=1)
-
     cmds = [
-        ("BACKGROUND", (0, 0), (-1, 0), DAY_HDR_BG),
-        ("TEXTCOLOR",  (0, 0), (-1, 0), DAY_HDR_FG),
-        ("BACKGROUND", (0, 1), (0, -1), DAY_HDR_BG),
-        ("TEXTCOLOR",  (0, 1), (0, -1), DAY_HDR_FG),
-        ("FONTNAME",   (0, 0), (-1, 0), "Helvetica-Bold"),
-        ("ALIGN",      (0, 0), (-1, -1), "CENTER"),
-        ("VALIGN",     (0, 0), (-1, -1), "MIDDLE"),
-        ("GRID",       (0, 0), (-1, -1), 0.4, BORDER_CLR),
-        ("TOPPADDING",    (0, 0), (-1, -1), 3),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
-        ("LEFTPADDING",   (0, 0), (-1, -1), 2),
-        ("RIGHTPADDING",  (0, 0), (-1, -1), 2),
-        ("FONTSIZE",   (1, 1), (-1, -1), 7),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("FONTNAME", (0, 1), (0, -1), "Helvetica-Bold"),
+        ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("GRID", (0, 0), (-1, -1), 0.5, BORDER_CLR),
+        ("BOX", (0, 0), (-1, -1), 1.0, colors.black),
+        ("TOPPADDING", (0, 0), (-1, -1), 4),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        ("LEFTPADDING", (0, 0), (-1, -1), 3),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 3),
+        ("FONTSIZE", (0, 0), (-1, -1), 10),
+        ("TEXTCOLOR", (0, 0), (-1, -1), colors.black),
     ]
-
-    for ci, cs in enumerate(col_slots, start=1):
-        if cs["kind"] == "break":
-            cmds.append(("BACKGROUND", (ci, 0), (ci, -1), BREAK_BG))
-        elif cs["kind"] == "lunch":
-            cmds.append(("BACKGROUND", (ci, 0), (ci, -1), LUNCH_BG))
-        else:
-            pp = cs["period_idx"]
-            for d in range(working_days):
-                si = faculty_solution.get((d, pp))
-                if si and not si.get("is_lab_cont") and si.get("type") == "lab":
-                    cmds.append(("BACKGROUND", (ci, d + 1), (ci, d + 1), LAB_BG))
-
-    for d in range(working_days):
-        if d % 2 == 1:
-            cmds.append(("BACKGROUND", (1, d + 1), (-1, d + 1), ALT_ROW_BG))
-
     tbl.setStyle(TableStyle(cmds))
     story.append(tbl)
     story.append(Spacer(1, 0.4 * cm))
 
-    # Summary table of subjects taught
-    sig_bold = _ps("fsgb", fontSize=9, fontName="Helvetica-Bold",
-                   textColor=colors.HexColor("#1e3a5f"), alignment=TA_CENTER)
-    leg_hdr_st = _ps("flhdr", fontSize=10, fontName="Helvetica-Bold",
-                     textColor=LEGEND_HDR, alignment=TA_LEFT, spaceBefore=4, spaceAfter=4)
+    # Summary table
+    leg_hdr_st = _ps(
+        "flhdr",
+        fontSize=12,
+        fontName="Helvetica-Bold",
+        textColor=colors.black,
+        alignment=TA_LEFT,
+        spaceBefore=4,
+        spaceAfter=4,
+    )
+    sig_bold = _ps(
+        "fsgb",
+        fontSize=11,
+        fontName="Helvetica-Bold",
+        textColor=colors.black,
+        alignment=TA_CENTER,
+    )
     story.append(Paragraph("Teaching Load Summary", leg_hdr_st))
 
     def lps(nm, **kw):
-        return _ps(nm, fontSize=8, **kw)
+        return _ps(nm, fontSize=10, **kw)
 
     leg_hrow = [
-        Paragraph("S.No",    lps("flh1", fontName="Helvetica-Bold", textColor=LEGEND_FG, alignment=TA_CENTER)),
-        Paragraph("Section", lps("flh2", fontName="Helvetica-Bold", textColor=LEGEND_FG, alignment=TA_CENTER)),
-        Paragraph("Subject Code",  lps("flh3", fontName="Helvetica-Bold", textColor=LEGEND_FG, alignment=TA_CENTER)),
-        Paragraph("Subject Name",  lps("flh4", fontName="Helvetica-Bold", textColor=LEGEND_FG, alignment=TA_CENTER)),
-        Paragraph("Type",    lps("flh5", fontName="Helvetica-Bold", textColor=LEGEND_FG, alignment=TA_CENTER)),
-        Paragraph("Periods/Week", lps("flh6", fontName="Helvetica-Bold", textColor=LEGEND_FG, alignment=TA_CENTER)),
+        Paragraph(
+            "S.No",
+            lps(
+                "flh1",
+                fontName="Helvetica-Bold",
+                textColor=colors.black,
+                alignment=TA_CENTER,
+            ),
+        ),
+        Paragraph(
+            "Section",
+            lps(
+                "flh2",
+                fontName="Helvetica-Bold",
+                textColor=colors.black,
+                alignment=TA_CENTER,
+            ),
+        ),
+        Paragraph(
+            "Subject Code",
+            lps(
+                "flh3",
+                fontName="Helvetica-Bold",
+                textColor=colors.black,
+                alignment=TA_CENTER,
+            ),
+        ),
+        Paragraph(
+            "Subject Name",
+            lps(
+                "flh4",
+                fontName="Helvetica-Bold",
+                textColor=colors.black,
+                alignment=TA_CENTER,
+            ),
+        ),
+        Paragraph(
+            "Type",
+            lps(
+                "flh5",
+                fontName="Helvetica-Bold",
+                textColor=colors.black,
+                alignment=TA_CENTER,
+            ),
+        ),
+        Paragraph(
+            "Periods/Week",
+            lps(
+                "flh6",
+                fontName="Helvetica-Bold",
+                textColor=colors.black,
+                alignment=TA_CENTER,
+            ),
+        ),
     ]
     legend_rows = [leg_hrow]
     seen = {}
-    sno  = 1
+    sno = 1
     for (d, p), si in sorted(faculty_solution.items()):
         if si.get("is_lab_cont"):
             continue
@@ -633,62 +702,86 @@ def generate_faculty_timetable_pdf(config, faculty_solution, faculty_name, colle
         seen[key] += 1
 
     for (sec, code), count in sorted(seen.items()):
-        # Find any slot for this (sec, code) to get name/type
-        info = next((v for v in faculty_solution.values()
-                     if v.get("section") == sec and v.get("subject_code") == code
-                     and not v.get("is_lab_cont")), {})
-        legend_rows.append([
-            Paragraph(str(sno),                lps("flc1", alignment=TA_CENTER)),
-            Paragraph(sec,                     lps("flc2", alignment=TA_CENTER)),
-            Paragraph(code,                    lps("flc3", alignment=TA_CENTER)),
-            Paragraph(info.get("subject_name", ""), lps("flc4", alignment=TA_LEFT)),
-            Paragraph(info.get("type", ""),    lps("flc5", alignment=TA_CENTER)),
-            Paragraph(str(count),              lps("flc6", alignment=TA_CENTER)),
-        ])
+        info = next(
+            (
+                v
+                for v in faculty_solution.values()
+                if v.get("section") == sec
+                and v.get("subject_code") == code
+                and not v.get("is_lab_cont")
+            ),
+            {},
+        )
+        legend_rows.append(
+            [
+                Paragraph(str(sno), lps("flc1", alignment=TA_CENTER)),
+                Paragraph(sec, lps("flc2", alignment=TA_CENTER)),
+                Paragraph(code, lps("flc3", alignment=TA_CENTER)),
+                Paragraph(info.get("subject_name", ""), lps("flc4", alignment=TA_LEFT)),
+                Paragraph(info.get("type", ""), lps("flc5", alignment=TA_CENTER)),
+                Paragraph(str(count), lps("flc6", alignment=TA_CENTER)),
+            ]
+        )
         sno += 1
 
     leg_total = landscape(A4)[0] - 3 * cm
-    lcw = [0.8 * cm, 2.0 * cm, 3.0 * cm,
-           leg_total - 0.8 * cm - 2.0 * cm - 3.0 * cm - 2.0 * cm - 2.5 * cm,
-           2.0 * cm, 2.5 * cm]
+    lcw = [
+        0.9 * cm,
+        2.0 * cm,
+        3.2 * cm,
+        leg_total - 0.9 * cm - 2.0 * cm - 3.2 * cm - 2.0 * cm - 2.5 * cm,
+        2.0 * cm,
+        2.5 * cm,
+    ]
     ltbl = Table(legend_rows, colWidths=lcw, repeatRows=1)
-    ltbl.setStyle(TableStyle([
-        ("BACKGROUND",  (0, 0), (-1, 0), LEGEND_HDR),
-        ("TEXTCOLOR",   (0, 0), (-1, 0), LEGEND_FG),
-        ("FONTSIZE",    (0, 0), (-1, -1), 8),
-        ("ALIGN",       (0, 0), (-1, -1), "LEFT"),
-        ("VALIGN",      (0, 0), (-1, -1), "MIDDLE"),
-        ("GRID",        (0, 0), (-1, -1), 0.4, BORDER_CLR),
-        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, ALT_ROW_BG]),
-        ("TOPPADDING",    (0, 0), (-1, -1), 3),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
-        ("LEFTPADDING",   (0, 0), (-1, -1), 3),
-    ]))
+    ltbl.setStyle(
+        TableStyle(
+            [
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("FONTSIZE", (0, 0), (-1, -1), 10),
+                ("TEXTCOLOR", (0, 0), (-1, -1), colors.black),
+                ("ALIGN", (0, 0), (-1, -1), "LEFT"),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("GRID", (0, 0), (-1, -1), 0.5, BORDER_CLR),
+                ("BOX", (0, 0), (-1, -1), 1.0, colors.black),
+                ("TOPPADDING", (0, 0), (-1, -1), 3),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+                ("LEFTPADDING", (0, 0), (-1, -1), 3),
+            ]
+        )
+    )
     story.append(ltbl)
     story.append(Spacer(1, 0.5 * cm))
 
-    # Signature row
-    sig_data = [[
-        Paragraph("Faculty", sig_bold),
-        Paragraph("Head of the Department", sig_bold),
-        Paragraph("Principal", sig_bold),
-    ]]
+    sig_data = [
+        [
+            Paragraph("Faculty", sig_bold),
+            Paragraph("Head of the Department", sig_bold),
+            Paragraph("Principal", sig_bold),
+        ]
+    ]
     stbl = Table(sig_data, colWidths=[leg_total / 3] * 3)
-    stbl.setStyle(TableStyle([
-        ("ALIGN",         (0, 0), (-1, -1), "CENTER"),
-        ("VALIGN",        (0, 0), (-1, -1), "BOTTOM"),
-        ("TOPPADDING",    (0, 0), (-1, -1), 20),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-        ("LINEABOVE",     (0, 0), (0, 0), 0.8, SIG_LINE),
-        ("LINEABOVE",     (1, 0), (1, 0), 0.8, SIG_LINE),
-        ("LINEABOVE",     (2, 0), (2, 0), 0.8, SIG_LINE),
-    ]))
+    stbl.setStyle(
+        TableStyle(
+            [
+                ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+                ("VALIGN", (0, 0), (-1, -1), "BOTTOM"),
+                ("TOPPADDING", (0, 0), (-1, -1), 20),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                ("LINEABOVE", (0, 0), (0, 0), 0.8, SIG_LINE),
+                ("LINEABOVE", (1, 0), (1, 0), 0.8, SIG_LINE),
+                ("LINEABOVE", (2, 0), (2, 0), 0.8, SIG_LINE),
+            ]
+        )
+    )
     story.append(stbl)
     story.append(Spacer(1, 0.2 * cm))
-    story.append(Paragraph(
-        "Generated on {}".format(datetime.now().strftime("%d %b %Y, %I:%M %p")),
-        footer_st,
-    ))
+    story.append(
+        Paragraph(
+            "Generated on {}".format(datetime.now().strftime("%d %b %Y, %I:%M %p")),
+            footer_st,
+        )
+    )
 
     doc.build(story)
     buf.seek(0)
@@ -698,7 +791,6 @@ def generate_faculty_timetable_pdf(config, faculty_solution, faculty_name, colle
 def generate_all_faculty_timetables_pdf(config, full_faculty_solution, college_name):
     """
     Generate a combined PDF with one page per faculty member.
-    full_faculty_solution: { faculty_name: { (day,period): slot_info } }
     Returns BytesIO.
     """
     buf = BytesIO()
@@ -712,53 +804,115 @@ def generate_all_faculty_timetables_pdf(config, full_faculty_solution, college_n
     )
     col_slots = _build_column_slots(config)
     story = []
-    for idx, (faculty_name, fac_sol) in enumerate(sorted(full_faculty_solution.items())):
+    for idx, (faculty_name, fac_sol) in enumerate(
+        sorted(full_faculty_solution.items())
+    ):
         if idx > 0:
             story.append(PageBreak())
-        # Re-use per-faculty story builder (inline here to avoid dup)
-        sub_buf = generate_faculty_timetable_pdf(config, fac_sol, faculty_name, college_name)
-        # We can't merge BytesIO directly into a platypus story easily,
-        # so we rebuild each faculty page using _faculty_page_story helper
-        story.extend(_faculty_page_story(config, fac_sol, faculty_name, college_name, col_slots))
+        story.extend(
+            _faculty_page_story(config, fac_sol, faculty_name, college_name, col_slots)
+        )
     doc.build(story)
     buf.seek(0)
     return buf
 
 
-def _faculty_page_story(config, faculty_solution, faculty_name, college_name, col_slots=None):
+def _faculty_page_story(
+    config, faculty_solution, faculty_name, college_name, col_slots=None
+):
     """Return list of Flowables for one faculty timetable page (no PageBreak prepended)."""
     if col_slots is None:
         col_slots = _build_column_slots(config)
 
     working_days = config["working_days"]
 
-    title_st  = _ps("fps_t",  fontSize=13, fontName="Helvetica-Bold",
-                    textColor=HEADER_BG, alignment=TA_CENTER, spaceAfter=2)
-    sub_st    = _ps("fps_s",  fontSize=9, fontName="Helvetica",
-                    textColor=colors.HexColor("#444444"), alignment=TA_CENTER, spaceAfter=4)
-    hdr_day   = _ps("fps_hd", fontSize=8, fontName="Helvetica-Bold",
-                    textColor=DAY_HDR_FG, alignment=TA_CENTER, leading=10)
-    hdr_time  = _ps("fps_ht", fontSize=6, fontName="Helvetica-Bold",
-                    textColor=colors.HexColor("#1e3a5f"), alignment=TA_CENTER, leading=7)
-    cell_n    = _ps("fps_cn", fontSize=7, alignment=TA_CENTER, leading=9,
-                    textColor=colors.HexColor("#212121"))
-    cell_it   = _ps("fps_ci", fontSize=7, fontName="Helvetica-Oblique",
-                    alignment=TA_CENTER, leading=9, textColor=colors.HexColor("#666666"))
-    cell_b    = _ps("fps_cb", fontSize=7, fontName="Helvetica-Bold",
-                    alignment=TA_CENTER, leading=9, textColor=colors.HexColor("#212121"))
-    cell_brk  = _ps("fps_cbr", fontSize=6, fontName="Helvetica-Bold",
-                    alignment=TA_CENTER, leading=8, textColor=colors.HexColor("#7b5800"))
-    footer_st = _ps("fps_ft", fontSize=7, textColor=colors.grey,
-                    alignment=TA_CENTER, spaceBefore=6)
-    leg_hdr_st = _ps("fps_lhdr", fontSize=10, fontName="Helvetica-Bold",
-                     textColor=LEGEND_HDR, alignment=TA_LEFT, spaceBefore=4, spaceAfter=4)
-    sig_bold   = _ps("fps_sgb", fontSize=9, fontName="Helvetica-Bold",
-                     textColor=colors.HexColor("#1e3a5f"), alignment=TA_CENTER)
+    title_st = _ps(
+        "fps_t",
+        fontSize=16,
+        fontName="Helvetica-Bold",
+        textColor=colors.black,
+        alignment=TA_CENTER,
+        spaceAfter=2,
+    )
+    sub_st = _ps(
+        "fps_s",
+        fontSize=11,
+        fontName="Helvetica",
+        textColor=colors.black,
+        alignment=TA_CENTER,
+        spaceAfter=4,
+    )
+    hdr_day = _ps(
+        "fps_hd",
+        fontSize=11,
+        fontName="Helvetica-Bold",
+        textColor=colors.black,
+        alignment=TA_CENTER,
+        leading=13,
+    )
+    hdr_time = _ps(
+        "fps_ht",
+        fontSize=9,
+        fontName="Helvetica-Bold",
+        textColor=colors.black,
+        alignment=TA_CENTER,
+        leading=11,
+    )
+    cell_n = _ps(
+        "fps_cn", fontSize=10, alignment=TA_CENTER, leading=12, textColor=colors.black
+    )
+    cell_it = _ps(
+        "fps_ci",
+        fontSize=10,
+        fontName="Helvetica-Oblique",
+        alignment=TA_CENTER,
+        leading=12,
+        textColor=colors.black,
+    )
+    cell_b = _ps(
+        "fps_cb",
+        fontSize=10,
+        fontName="Helvetica-Bold",
+        alignment=TA_CENTER,
+        leading=12,
+        textColor=colors.black,
+    )
+    cell_brk = _ps(
+        "fps_cbr",
+        fontSize=9,
+        fontName="Helvetica-Bold",
+        alignment=TA_CENTER,
+        leading=10,
+        textColor=colors.black,
+    )
+    footer_st = _ps(
+        "fps_ft", fontSize=8, textColor=colors.grey, alignment=TA_CENTER, spaceBefore=6
+    )
+    leg_hdr_st = _ps(
+        "fps_lhdr",
+        fontSize=12,
+        fontName="Helvetica-Bold",
+        textColor=colors.black,
+        alignment=TA_LEFT,
+        spaceBefore=4,
+        spaceAfter=4,
+    )
+    sig_bold = _ps(
+        "fps_sgb",
+        fontSize=11,
+        fontName="Helvetica-Bold",
+        textColor=colors.black,
+        alignment=TA_CENTER,
+    )
 
     story = []
     story.append(Paragraph(college_name, title_st))
-    story.append(Paragraph("Faculty Timetable \u2014 <b>{}</b>".format(faculty_name), sub_st))
-    story.append(HRFlowable(width="100%", thickness=1.5, color=HEADER_BG, spaceAfter=6))
+    story.append(
+        Paragraph("Faculty Timetable \u2014 <b>{}</b>".format(faculty_name), sub_st)
+    )
+    story.append(
+        HRFlowable(width="100%", thickness=1.5, color=colors.black, spaceAfter=6)
+    )
 
     header_row = [Paragraph("DAY/TIME", hdr_day)]
     for cs in col_slots:
@@ -773,7 +927,7 @@ def _faculty_page_story(config, faculty_solution, faculty_name, college_name, co
             if cs["kind"] in ("break", "lunch"):
                 row.append(Paragraph("", cell_n))
                 continue
-            p  = cs["period_idx"]
+            p = cs["period_idx"]
             si = faculty_solution.get((d, p))
             if si is None:
                 row.append(Paragraph("", cell_n))
@@ -781,76 +935,112 @@ def _faculty_page_story(config, faculty_solution, faculty_name, college_name, co
                 row.append(Paragraph("(cont.)", cell_it))
             else:
                 stype = si.get("type", "theory")
-                sec   = si.get("section", "")
+                sec = si.get("section", "")
                 sname = si.get("subject_name", "")
                 scode = si.get("subject_code", "")
-                txt   = ("LAB\n{}\n(Sec {})".format(scode, sec)
-                         if stype == "lab"
-                         else "{}\n(Sec {})".format(sname, sec))
+                txt = (
+                    "LAB\n{}\n(Sec {})".format(scode, sec)
+                    if stype == "lab"
+                    else "{}\n(Sec {})".format(sname, sec)
+                )
                 row.append(Paragraph(txt, cell_b))
         table_data.append(row)
 
-    page_w      = landscape(A4)[0] - 3 * cm
-    day_col_w   = 1.3 * cm
-    break_col_w = 1.2 * cm
-    lunch_col_w = 1.6 * cm
-    n_break  = sum(1 for cs in col_slots if cs["kind"] == "break")
-    n_lunch  = sum(1 for cs in col_slots if cs["kind"] == "lunch")
+    page_w = landscape(A4)[0] - 3 * cm
+    day_col_w = 1.5 * cm
+    break_col_w = 1.4 * cm
+    lunch_col_w = 1.8 * cm
+    n_break = sum(1 for cs in col_slots if cs["kind"] == "break")
+    n_lunch = sum(1 for cs in col_slots if cs["kind"] == "lunch")
     n_period = sum(1 for cs in col_slots if cs["kind"] == "period")
-    remain   = page_w - day_col_w - n_break * break_col_w - n_lunch * lunch_col_w
-    per_w    = remain / max(n_period, 1)
+    remain = page_w - day_col_w - n_break * break_col_w - n_lunch * lunch_col_w
+    per_w = remain / max(n_period, 1)
     col_widths = [day_col_w] + [
-        per_w if cs["kind"] == "period" else (break_col_w if cs["kind"] == "break" else lunch_col_w)
+        per_w
+        if cs["kind"] == "period"
+        else (break_col_w if cs["kind"] == "break" else lunch_col_w)
         for cs in col_slots
     ]
 
     tbl = Table(table_data, colWidths=col_widths, repeatRows=1)
     cmds = [
-        ("BACKGROUND", (0, 0), (-1, 0), DAY_HDR_BG),
-        ("TEXTCOLOR",  (0, 0), (-1, 0), DAY_HDR_FG),
-        ("BACKGROUND", (0, 1), (0, -1), DAY_HDR_BG),
-        ("TEXTCOLOR",  (0, 1), (0, -1), DAY_HDR_FG),
-        ("FONTNAME",   (0, 0), (-1, 0), "Helvetica-Bold"),
-        ("ALIGN",      (0, 0), (-1, -1), "CENTER"),
-        ("VALIGN",     (0, 0), (-1, -1), "MIDDLE"),
-        ("GRID",       (0, 0), (-1, -1), 0.4, BORDER_CLR),
-        ("TOPPADDING",    (0, 0), (-1, -1), 3),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
-        ("LEFTPADDING",   (0, 0), (-1, -1), 2),
-        ("RIGHTPADDING",  (0, 0), (-1, -1), 2),
-        ("FONTSIZE",   (1, 1), (-1, -1), 7),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("FONTNAME", (0, 1), (0, -1), "Helvetica-Bold"),
+        ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("GRID", (0, 0), (-1, -1), 0.5, BORDER_CLR),
+        ("BOX", (0, 0), (-1, -1), 1.0, colors.black),
+        ("TOPPADDING", (0, 0), (-1, -1), 4),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        ("LEFTPADDING", (0, 0), (-1, -1), 3),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 3),
+        ("FONTSIZE", (0, 0), (-1, -1), 10),
+        ("TEXTCOLOR", (0, 0), (-1, -1), colors.black),
     ]
-    for ci, cs in enumerate(col_slots, start=1):
-        if cs["kind"] == "break":
-            cmds.append(("BACKGROUND", (ci, 0), (ci, -1), BREAK_BG))
-        elif cs["kind"] == "lunch":
-            cmds.append(("BACKGROUND", (ci, 0), (ci, -1), LUNCH_BG))
-        else:
-            pp = cs["period_idx"]
-            for d in range(working_days):
-                si = faculty_solution.get((d, pp))
-                if si and not si.get("is_lab_cont") and si.get("type") == "lab":
-                    cmds.append(("BACKGROUND", (ci, d + 1), (ci, d + 1), LAB_BG))
-    for d in range(working_days):
-        if d % 2 == 1:
-            cmds.append(("BACKGROUND", (1, d + 1), (-1, d + 1), ALT_ROW_BG))
     tbl.setStyle(TableStyle(cmds))
     story.append(tbl)
     story.append(Spacer(1, 0.4 * cm))
 
-    # Summary
     story.append(Paragraph("Teaching Load Summary", leg_hdr_st))
 
     def lps(nm, **kw):
-        return _ps(nm, fontSize=8, **kw)
+        return _ps(nm, fontSize=10, **kw)
 
     leg_hrow = [
-        Paragraph("S.No",   lps("fps_lh1", fontName="Helvetica-Bold", textColor=LEGEND_FG, alignment=TA_CENTER)),
-        Paragraph("Section",lps("fps_lh2", fontName="Helvetica-Bold", textColor=LEGEND_FG, alignment=TA_CENTER)),
-        Paragraph("Code",   lps("fps_lh3", fontName="Helvetica-Bold", textColor=LEGEND_FG, alignment=TA_CENTER)),
-        Paragraph("Subject Name", lps("fps_lh4", fontName="Helvetica-Bold", textColor=LEGEND_FG, alignment=TA_CENTER)),
-        Paragraph("Type",   lps("fps_lh5", fontName="Helvetica-Bold", textColor=LEGEND_FG, alignment=TA_CENTER)),
-        Paragraph("Periods",lps("fps_lh6", fontName="Helvetica-Bold", textColor=LEGEND_FG, alignment=TA_CENTER)),
+        Paragraph(
+            "S.No",
+            lps(
+                "fps_lh1",
+                fontName="Helvetica-Bold",
+                textColor=colors.black,
+                alignment=TA_CENTER,
+            ),
+        ),
+        Paragraph(
+            "Section",
+            lps(
+                "fps_lh2",
+                fontName="Helvetica-Bold",
+                textColor=colors.black,
+                alignment=TA_CENTER,
+            ),
+        ),
+        Paragraph(
+            "Code",
+            lps(
+                "fps_lh3",
+                fontName="Helvetica-Bold",
+                textColor=colors.black,
+                alignment=TA_CENTER,
+            ),
+        ),
+        Paragraph(
+            "Subject Name",
+            lps(
+                "fps_lh4",
+                fontName="Helvetica-Bold",
+                textColor=colors.black,
+                alignment=TA_CENTER,
+            ),
+        ),
+        Paragraph(
+            "Type",
+            lps(
+                "fps_lh5",
+                fontName="Helvetica-Bold",
+                textColor=colors.black,
+                alignment=TA_CENTER,
+            ),
+        ),
+        Paragraph(
+            "Periods",
+            lps(
+                "fps_lh6",
+                fontName="Helvetica-Bold",
+                textColor=colors.black,
+                alignment=TA_CENTER,
+            ),
+        ),
     ]
     legend_rows = [leg_hrow]
     seen = {}
@@ -863,54 +1053,75 @@ def _faculty_page_story(config, faculty_solution, faculty_name, college_name, co
 
     for sno, ((sec, code), val) in enumerate(sorted(seen.items()), start=1):
         info = val["info"]
-        legend_rows.append([
-            Paragraph(str(sno),                  lps("fps_lc1", alignment=TA_CENTER)),
-            Paragraph(sec,                        lps("fps_lc2", alignment=TA_CENTER)),
-            Paragraph(code,                       lps("fps_lc3", alignment=TA_CENTER)),
-            Paragraph(info.get("subject_name",""),lps("fps_lc4", alignment=TA_LEFT)),
-            Paragraph(info.get("type",""),        lps("fps_lc5", alignment=TA_CENTER)),
-            Paragraph(str(val["count"]),          lps("fps_lc6", alignment=TA_CENTER)),
-        ])
+        legend_rows.append(
+            [
+                Paragraph(str(sno), lps("fps_lc1", alignment=TA_CENTER)),
+                Paragraph(sec, lps("fps_lc2", alignment=TA_CENTER)),
+                Paragraph(code, lps("fps_lc3", alignment=TA_CENTER)),
+                Paragraph(
+                    info.get("subject_name", ""), lps("fps_lc4", alignment=TA_LEFT)
+                ),
+                Paragraph(info.get("type", ""), lps("fps_lc5", alignment=TA_CENTER)),
+                Paragraph(str(val["count"]), lps("fps_lc6", alignment=TA_CENTER)),
+            ]
+        )
 
     leg_total = landscape(A4)[0] - 3 * cm
-    lcw = [0.8*cm, 2.0*cm, 3.0*cm,
-           leg_total - 0.8*cm - 2.0*cm - 3.0*cm - 2.0*cm - 2.5*cm,
-           2.0*cm, 2.5*cm]
+    lcw = [
+        0.9 * cm,
+        2.0 * cm,
+        3.2 * cm,
+        leg_total - 0.9 * cm - 2.0 * cm - 3.2 * cm - 2.0 * cm - 2.5 * cm,
+        2.0 * cm,
+        2.5 * cm,
+    ]
     ltbl = Table(legend_rows, colWidths=lcw, repeatRows=1)
-    ltbl.setStyle(TableStyle([
-        ("BACKGROUND",  (0, 0), (-1, 0), LEGEND_HDR),
-        ("TEXTCOLOR",   (0, 0), (-1, 0), LEGEND_FG),
-        ("FONTSIZE",    (0, 0), (-1, -1), 8),
-        ("ALIGN",       (0, 0), (-1, -1), "LEFT"),
-        ("VALIGN",      (0, 0), (-1, -1), "MIDDLE"),
-        ("GRID",        (0, 0), (-1, -1), 0.4, BORDER_CLR),
-        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, ALT_ROW_BG]),
-        ("TOPPADDING",    (0, 0), (-1, -1), 3),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
-        ("LEFTPADDING",   (0, 0), (-1, -1), 3),
-    ]))
+    ltbl.setStyle(
+        TableStyle(
+            [
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("FONTSIZE", (0, 0), (-1, -1), 10),
+                ("TEXTCOLOR", (0, 0), (-1, -1), colors.black),
+                ("ALIGN", (0, 0), (-1, -1), "LEFT"),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("GRID", (0, 0), (-1, -1), 0.5, BORDER_CLR),
+                ("BOX", (0, 0), (-1, -1), 1.0, colors.black),
+                ("TOPPADDING", (0, 0), (-1, -1), 3),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+                ("LEFTPADDING", (0, 0), (-1, -1), 3),
+            ]
+        )
+    )
     story.append(ltbl)
     story.append(Spacer(1, 0.5 * cm))
 
-    sig_data = [[
-        Paragraph("Faculty",              sig_bold),
-        Paragraph("Head of the Department", sig_bold),
-        Paragraph("Principal",            sig_bold),
-    ]]
+    sig_data = [
+        [
+            Paragraph("Faculty", sig_bold),
+            Paragraph("Head of the Department", sig_bold),
+            Paragraph("Principal", sig_bold),
+        ]
+    ]
     stbl = Table(sig_data, colWidths=[leg_total / 3] * 3)
-    stbl.setStyle(TableStyle([
-        ("ALIGN",         (0, 0), (-1, -1), "CENTER"),
-        ("VALIGN",        (0, 0), (-1, -1), "BOTTOM"),
-        ("TOPPADDING",    (0, 0), (-1, -1), 20),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-        ("LINEABOVE",     (0, 0), (0, 0), 0.8, SIG_LINE),
-        ("LINEABOVE",     (1, 0), (1, 0), 0.8, SIG_LINE),
-        ("LINEABOVE",     (2, 0), (2, 0), 0.8, SIG_LINE),
-    ]))
+    stbl.setStyle(
+        TableStyle(
+            [
+                ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+                ("VALIGN", (0, 0), (-1, -1), "BOTTOM"),
+                ("TOPPADDING", (0, 0), (-1, -1), 20),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                ("LINEABOVE", (0, 0), (0, 0), 0.8, SIG_LINE),
+                ("LINEABOVE", (1, 0), (1, 0), 0.8, SIG_LINE),
+                ("LINEABOVE", (2, 0), (2, 0), 0.8, SIG_LINE),
+            ]
+        )
+    )
     story.append(stbl)
     story.append(Spacer(1, 0.2 * cm))
-    story.append(Paragraph(
-        "Generated on {}".format(datetime.now().strftime("%d %b %Y, %I:%M %p")),
-        footer_st,
-    ))
+    story.append(
+        Paragraph(
+            "Generated on {}".format(datetime.now().strftime("%d %b %Y, %I:%M %p")),
+            footer_st,
+        )
+    )
     return story

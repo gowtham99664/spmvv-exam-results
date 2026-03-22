@@ -14,10 +14,11 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
     def validate(self, attrs):
         if attrs['password'] != attrs['password_confirm']:
             raise serializers.ValidationError({"password": "Password fields didn't match."})
-        
-        if User.objects.filter(roll_number=attrs['roll_number']).exists():
+
+        roll_number = attrs.get('roll_number')
+        if roll_number and User.objects.filter(roll_number=roll_number).exists():
             raise serializers.ValidationError({"roll_number": "Roll number already exists."})
-        
+
         return attrs
     
     def create(self, validated_data):
@@ -84,10 +85,23 @@ class NotificationSerializer(serializers.ModelSerializer):
 
 class AuditLogSerializer(serializers.ModelSerializer):
     username = serializers.CharField(source='user.username', read_only=True)
-    
+    user_role = serializers.CharField(source='user.role', read_only=True)
+    action_display = serializers.CharField(source='get_action_display', read_only=True)
+
     class Meta:
         model = AuditLog
-        fields = ['id', 'username', 'action', 'details', 'ip_address', 'timestamp']
+        fields = [
+            'id', 'username', 'user_role', 'action', 'action_display',
+            'details', 'ip_address', 'timestamp', 'session_id',
+        ]
+
+
+class NullableIntegerField(serializers.IntegerField):
+    """IntegerField that treats empty string as None (for multipart/form-data)."""
+    def to_internal_value(self, data):
+        if data == "" or data is None:
+            return None
+        return super().to_internal_value(data)
 
 
 class CircularSerializer(serializers.ModelSerializer):
@@ -95,12 +109,14 @@ class CircularSerializer(serializers.ModelSerializer):
     created_at_formatted = serializers.SerializerMethodField()
     file_extension = serializers.SerializerMethodField()
     file_url = serializers.SerializerMethodField()
-    
+    # Allow empty string from multipart/form-data to be treated as null
+    target_year = NullableIntegerField(allow_null=True, required=False)
+
     class Meta:
         model = Circular
         fields = [
             "id", "title", "category", "description", "attachment", "attachment_name",
-            "is_active", "target_year", "target_branch", "created_by", "created_by_name",
+            "is_active", "target_audience", "target_year", "target_branch", "created_by", "created_by_name",
             "created_at", "created_at_formatted", "updated_at", "file_extension", "file_url"
         ]
         read_only_fields = ["created_by", "created_at", "updated_at"]

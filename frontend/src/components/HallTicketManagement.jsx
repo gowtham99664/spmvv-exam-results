@@ -12,6 +12,20 @@ const HallTicketManagement = () => {
   const [hallTickets, setHallTickets] = useState([]);
   const [toast, setToast] = useState({ show: false, message: '', type: '' });
 
+  // Supplementary Hall Ticket panel state
+  const [showSupplePanel, setShowSupplePanel] = useState(false);
+  const [suppleLoading, setSuppleLoading] = useState(false);
+  const [suppleCombos, setSuppleCombos] = useState([]);
+  const [suppleForm, setSuppleForm] = useState({
+    year: 1,
+    semester: 1,
+    course: '',
+    branch: '',
+    exam_center: 'SPMVV, Tirupati',
+    exam_start_time: '09:00',
+    exam_end_time: '12:00',
+  });
+
   // Exam Form State with exact fields from requirements
   const [examForm, setExamForm] = useState({
     year: 'I',              // Roman numeral dropdown
@@ -386,6 +400,39 @@ const HallTicketManagement = () => {
     setHallTickets([]);
   };
 
+  // Load supplementary combos when panel opens
+  const openSupplePanel = async () => {
+    setShowSupplePanel(true);
+    try {
+      const data = await hallTicketService.getSupplementaryCombos();
+      setSuppleCombos(data.combinations || []);
+    } catch (err) {
+      showToast('Could not load supplementary data', 'error');
+    }
+  };
+
+  // Submit supplementary hall ticket generation
+  const handleGenerateSupple = async () => {
+    if (!suppleForm.year || !suppleForm.semester) {
+      showToast('Please select Year and Semester', 'error');
+      return;
+    }
+    try {
+      setSuppleLoading(true);
+      const response = await hallTicketService.generateSupplementaryHallTickets(suppleForm);
+      showToast(
+        `Generated ${response.total_hall_tickets} hall tickets for ${response.exams_created} exam(s)`,
+        'success'
+      );
+      setShowSupplePanel(false);
+      fetchExams();
+    } catch (err) {
+      showToast(err.response?.data?.error || 'Error generating supplementary hall tickets', 'error');
+    } finally {
+      setSuppleLoading(false);
+    }
+  };
+
   return (
     <div className="p-6">
       {/* Toast Notification */}
@@ -407,6 +454,133 @@ const HallTicketManagement = () => {
         >
           <FaPlus /> Create New Exam
         </button>
+      </div>
+
+      {/* Generate Supplementary Hall Tickets Panel */}
+      <div className="mb-6 bg-white rounded-lg shadow">
+        <button
+          onClick={showSupplePanel ? () => setShowSupplePanel(false) : openSupplePanel}
+          className="w-full flex justify-between items-center px-6 py-4 text-left font-semibold text-gray-800 hover:bg-gray-50 rounded-lg"
+        >
+          <span>Generate Supplementary Hall Tickets</span>
+          <span className="text-gray-400">{showSupplePanel ? '▲' : '▼'}</span>
+        </button>
+
+        {showSupplePanel && (
+          <div className="px-6 pb-6 border-t pt-4">
+            <div className="grid grid-cols-2 gap-4 mb-4">
+              {/* Year */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Year *</label>
+                <select
+                  value={suppleForm.year}
+                  onChange={e => setSuppleForm({ ...suppleForm, year: parseInt(e.target.value) })}
+                  className="w-full border rounded px-3 py-2 text-sm"
+                >
+                  <option value={1}>I (1st Year)</option>
+                  <option value={2}>II (2nd Year)</option>
+                  <option value={3}>III (3rd Year)</option>
+                  <option value={4}>IV (4th Year)</option>
+                </select>
+              </div>
+
+              {/* Semester */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Semester *</label>
+                <select
+                  value={suppleForm.semester}
+                  onChange={e => setSuppleForm({ ...suppleForm, semester: parseInt(e.target.value) })}
+                  className="w-full border rounded px-3 py-2 text-sm"
+                >
+                  <option value={1}>I (Odd)</option>
+                  <option value={2}>II (Even)</option>
+                </select>
+              </div>
+
+              {/* Course (optional filter) */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Course (optional)</label>
+                <input
+                  type="text"
+                  placeholder="e.g. B.Tech"
+                  value={suppleForm.course}
+                  onChange={e => setSuppleForm({ ...suppleForm, course: e.target.value })}
+                  className="w-full border rounded px-3 py-2 text-sm"
+                />
+              </div>
+
+              {/* Branch (optional filter) */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Branch (optional)</label>
+                <input
+                  type="text"
+                  placeholder="e.g. CSE"
+                  value={suppleForm.branch}
+                  onChange={e => setSuppleForm({ ...suppleForm, branch: e.target.value })}
+                  className="w-full border rounded px-3 py-2 text-sm"
+                />
+              </div>
+
+              {/* Exam Center */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Exam Center</label>
+                <input
+                  type="text"
+                  value={suppleForm.exam_center}
+                  onChange={e => setSuppleForm({ ...suppleForm, exam_center: e.target.value })}
+                  className="w-full border rounded px-3 py-2 text-sm"
+                />
+              </div>
+
+              {/* Start Time */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Start Time</label>
+                <input
+                  type="time"
+                  value={suppleForm.exam_start_time}
+                  onChange={e => setSuppleForm({ ...suppleForm, exam_start_time: e.target.value })}
+                  className="w-full border rounded px-3 py-2 text-sm"
+                />
+              </div>
+
+              {/* End Time */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">End Time</label>
+                <input
+                  type="time"
+                  value={suppleForm.exam_end_time}
+                  onChange={e => setSuppleForm({ ...suppleForm, exam_end_time: e.target.value })}
+                  className="w-full border rounded px-3 py-2 text-sm"
+                />
+              </div>
+            </div>
+
+            {/* Available combos hint */}
+            {suppleCombos.length > 0 && (
+              <div className="mb-4 p-3 bg-blue-50 rounded text-sm text-blue-800">
+                <strong>Found supplementary data for:</strong>{' '}
+                {suppleCombos.map((c, i) => (
+                  <span key={i} className="inline-block mr-2">
+                    Year {c.year} Sem {c.semester} – {c.student_count} student(s)
+                  </span>
+                ))}
+              </div>
+            )}
+            {suppleCombos.length === 0 && (
+              <div className="mb-4 p-3 bg-yellow-50 rounded text-sm text-yellow-800">
+                No supplementary results uploaded yet for the selected combination.
+              </div>
+            )}
+
+            <button
+              onClick={handleGenerateSupple}
+              disabled={suppleLoading}
+              className="bg-purple-600 hover:bg-purple-700 disabled:bg-gray-400 text-white px-6 py-2 rounded-lg font-medium"
+            >
+              {suppleLoading ? 'Generating...' : 'Generate Supplementary Hall Tickets'}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Exams List */}

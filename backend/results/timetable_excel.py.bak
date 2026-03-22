@@ -381,11 +381,8 @@ def generate_timetable_excel(config, full_solution, metadata):
     col_slots = _build_column_slots(config)
 
     for section, solution in sorted(full_solution.items()):
-        # Extract section letter from scoped key e.g. "CSE_2_1_A" -> "A"
-        sec_parts = section.rsplit("_", 1)
-        sec_letter = sec_parts[-1] if len(sec_parts) == 2 else section
-        ws = wb.create_sheet(title="Sec {}".format(sec_letter))
-        _write_section_sheet(ws, config, solution, sec_letter, metadata, col_slots)
+        ws = wb.create_sheet(title="Sec {}".format(section))
+        _write_section_sheet(ws, config, solution, section, metadata, col_slots)
 
     _write_faculty_load_sheet(wb, full_solution, metadata)
 

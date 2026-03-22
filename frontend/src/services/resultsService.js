@@ -100,9 +100,13 @@ export const resultsService = {
     return response.data;
   },
 
-  // Get audit logs (admin)
-  getAuditLogs: async () => {
-    const response = await api.get('/audit-logs/');
+  // Get session-wise audit logs (admin) - last 5 days
+  getAuditLogs: async (filters = {}) => {
+    const params = new URLSearchParams();
+    if (filters.user) params.append('user', filters.user);
+    if (filters.action) params.append('action', filters.action);
+    const query = params.toString();
+    const response = await api.get(`/audit-logs/${query ? '?' + query : ''}`);
     return response.data;
   },
 

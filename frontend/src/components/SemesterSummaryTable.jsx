@@ -139,21 +139,21 @@ const SemesterSummaryTable = ({ studentInfo, semesterSummary, onRefresh }) => {
                     <div className="text-center">
                       <p className="text-xs text-gray-400 mb-0.5">SGPA</p>
                       <p className="text-sm font-semibold text-blue-600">
-                        {latest.sgpa ? latest.sgpa.toFixed(2) : 'N/A'}
+                        {latest.consolidated_sgpa != null ? latest.consolidated_sgpa.toFixed(2) : (latest.sgpa ? latest.sgpa.toFixed(2) : 'N/A')}
                       </p>
                     </div>
                     <div className="text-center">
                       <p className="text-xs text-gray-400 mb-0.5">Result</p>
-                      <ResultBadge result={latest.overall_result} />
+                      <ResultBadge result={latest.consolidated_result ?? latest.overall_result} />
                     </div>
                     <div className="text-center">
                       <p className="text-xs text-gray-400 mb-0.5">Pending</p>
-                      <PendingBadge count={latest.pending_subjects} />
+                      <PendingBadge count={latest.consolidated_pending ?? latest.pending_subjects} />
                     </div>
-                    {latest.pending_subjects > 0 && latest.pending_subject_names?.length > 0 && (
+                    {(latest.consolidated_pending ?? latest.pending_subjects) > 0 && (latest.consolidated_pending_names ?? latest.pending_subject_names)?.length > 0 && (
                       <div className="text-left">
                         <p className="text-xs text-gray-400 mb-0.5">Pending Subjects</p>
-                        <p className="text-xs text-orange-600 font-medium">{latest.pending_subject_names.join(', ')}</p>
+                        <p className="text-xs text-orange-600 font-medium">{(latest.consolidated_pending_names ?? latest.pending_subject_names).join(', ')}</p>
                       </div>
                     )}
                     {multiAttempt && (

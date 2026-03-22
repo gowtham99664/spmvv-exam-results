@@ -75,7 +75,7 @@ def manage_exams(request):
     
     elif request.method == 'POST':
         # Only admin can create exams
-        if request.user.role != "admin":
+        if not (request.user.role == "admin" or (request.user.halltickets_create or request.user.halltickets_generate or request.user.halltickets_download)):
             return Response({'error': 'Only admin users can create exams'}, 
                           status=status.HTTP_403_FORBIDDEN)
         
@@ -118,7 +118,7 @@ def exam_detail(request, exam_id):
         return Response(serializer.data, status=status.HTTP_200_OK)
     
     elif request.method == 'PUT':
-        if request.user.role != "admin":
+        if not (request.user.role == "admin" or (request.user.halltickets_create or request.user.halltickets_generate or request.user.halltickets_download)):
             return Response({'error': 'Only admin users can update exams'}, 
                           status=status.HTTP_403_FORBIDDEN)
         
@@ -137,7 +137,7 @@ def exam_detail(request, exam_id):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
     elif request.method == 'DELETE':
-        if request.user.role != "admin":
+        if not (request.user.role == "admin" or (request.user.halltickets_create or request.user.halltickets_generate or request.user.halltickets_download)):
             return Response({'error': 'Only admin users can delete exams'}, 
                           status=status.HTTP_403_FORBIDDEN)
         
@@ -160,7 +160,7 @@ def exam_detail(request, exam_id):
 @permission_classes([IsAuthenticated])
 def add_exam_subject(request, exam_id):
     """Add a subject to an exam (admin only)"""
-    if request.user.role != "admin":
+    if not (request.user.role == "admin" or (request.user.halltickets_create or request.user.halltickets_generate or request.user.halltickets_download)):
         return Response({'error': 'Only admin users can add subjects'}, 
                       status=status.HTTP_403_FORBIDDEN)
     
@@ -185,7 +185,7 @@ def add_exam_subject(request, exam_id):
 @permission_classes([IsAuthenticated])
 def update_exam_subject(request, subject_id):
     """Update a subject (admin only)"""
-    if request.user.role != "admin":
+    if not (request.user.role == "admin" or (request.user.halltickets_create or request.user.halltickets_generate or request.user.halltickets_download)):
         return Response({'error': 'Only admin users can update subjects'}, 
                       status=status.HTTP_403_FORBIDDEN)
     
@@ -209,7 +209,7 @@ def update_exam_subject(request, subject_id):
 @permission_classes([IsAuthenticated])
 def delete_exam_subject(request, subject_id):
     """Delete a subject (admin only)"""
-    if request.user.role != "admin":
+    if not (request.user.role == "admin" or (request.user.halltickets_create or request.user.halltickets_generate or request.user.halltickets_download)):
         return Response({'error': 'Only admin users can delete subjects'}, 
                       status=status.HTTP_403_FORBIDDEN)
     
@@ -242,7 +242,7 @@ def upload_student_list(request, exam_id):
     logger.info(f'request.user: {request.user}')
     logger.info(f'request.user.role == "admin": {request.user.role == "admin"}')
     
-    if request.user.role != "admin":
+    if not (request.user.role == "admin" or (request.user.halltickets_create or request.user.halltickets_generate or request.user.halltickets_download)):
         logger.warning(f'Non-staff user {request.user} attempted to upload student list')
         return Response({'error': 'Only admin users can upload student lists'}, 
                       status=status.HTTP_403_FORBIDDEN)
@@ -360,7 +360,7 @@ def upload_student_photo(request):
     student_photo, created = StudentPhoto.objects.update_or_create(
         student=user,
         defaults={
-            'roll_number': user.roll_number,
+            'roll_number': user.roll_number or user.username,
             'photo': photo,
             'consent_given': True,
             'consent_text': consent_text,
@@ -399,7 +399,7 @@ def get_student_photo(request):
 @permission_classes([IsAuthenticated])
 def generate_hall_tickets(request, exam_id):
     """Generate hall tickets for all enrolled students (admin only)"""
-    if request.user.role != "admin":
+    if not (request.user.role == "admin" or (request.user.halltickets_create or request.user.halltickets_generate or request.user.halltickets_download)):
         return Response({'error': 'Only admin users can generate hall tickets'}, 
                       status=status.HTTP_403_FORBIDDEN)
     
@@ -474,7 +474,7 @@ def list_hall_tickets(request, exam_id):
 @permission_classes([IsAuthenticated])
 def download_hall_ticket(request, ticket_id):
     """Download hall ticket PDF (admin only) - generates PDF in-memory without storing"""
-    if request.user.role != "admin":
+    if not (request.user.role == "admin" or (request.user.halltickets_create or request.user.halltickets_generate or request.user.halltickets_download)):
         return Response({'error': 'Only admin users can download hall tickets'}, 
                       status=status.HTTP_403_FORBIDDEN)
     
@@ -613,7 +613,7 @@ def download_all_hall_tickets(request, exam_id):
     import tempfile
     import os
     
-    if request.user.role != "admin":
+    if not (request.user.role == "admin" or (request.user.halltickets_create or request.user.halltickets_generate or request.user.halltickets_download)):
         return Response({'error': 'Only admin users can download hall tickets'}, 
                       status=status.HTTP_403_FORBIDDEN)
     
@@ -714,3 +714,185 @@ def download_all_hall_tickets(request, exam_id):
     })
     
     return response
+
+
+# ==================== SUPPLEMENTARY HALL TICKET GENERATION ====================
+
+@api_view(['GET', 'POST'])
+@permission_classes([IsAuthenticated])
+def generate_supplementary_hall_tickets(request):
+    """
+    GET : Return distinct year+semester combos that have supplementary/fail results.
+    POST: Generate hall tickets for all supplementary students in the given year+semester.
+          Body: { year (int 1-4), semester (int 1-2), course (str, optional),
+                  branch (str, optional), exam_center, exam_start_time, exam_end_time }
+    """
+    if not (request.user.role == "admin" or (request.user.halltickets_create or request.user.halltickets_generate or request.user.halltickets_download)):
+        return Response({'error': 'Only admin users can generate supplementary hall tickets'},
+                        status=status.HTTP_403_FORBIDDEN)
+
+    from .models import Result, Subject as SubjectModel
+
+    if request.method == 'GET':
+        # Return distinct year/semester combos that have supplementary failures
+        combos = (
+            Result.objects
+            .filter(result_type__in=['supplementary', 'both'])
+            .values('year', 'semester', 'course')
+            .distinct()
+            .order_by('year', 'semester')
+        )
+        return Response({'combinations': list(combos)}, status=status.HTTP_200_OK)
+
+    # --- POST ---
+    year_param = request.data.get('year')
+    semester_param = request.data.get('semester')
+    course_filter = request.data.get('course', '')        # optional filter
+    branch_filter = request.data.get('branch', '')        # optional filter
+    exam_center = request.data.get('exam_center', 'SPMVV, Tirupati')
+    exam_start_time = request.data.get('exam_start_time', '09:00')
+    exam_end_time = request.data.get('exam_end_time', '12:00')
+
+    if year_param is None or semester_param is None:
+        return Response({'error': 'year and semester are required'}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        year_num = int(year_param)
+        sem_num = int(semester_param)
+    except (ValueError, TypeError):
+        return Response({'error': 'year and semester must be integers'}, status=status.HTTP_400_BAD_REQUEST)
+
+    if year_num not in [1, 2, 3, 4]:
+        return Response({'error': 'year must be 1, 2, 3 or 4'}, status=status.HTTP_400_BAD_REQUEST)
+    if sem_num not in [1, 2]:
+        return Response({'error': 'semester must be 1 or 2'}, status=status.HTTP_400_BAD_REQUEST)
+
+    # Year roman-numeral label used in the Exam model
+    year_labels = {1: 'I', 2: 'II', 3: 'III', 4: 'IV'}
+    sem_labels = {1: 'I', 2: 'II'}
+    year_label = year_labels[year_num]
+    sem_label = sem_labels[sem_num]
+
+    # Find supplementary students: result_type is supplementary/both
+    supple_qs = Result.objects.filter(
+        result_type__in=['supplementary', 'both'],
+        year=year_num,
+        semester=sem_num,
+    ).select_related('student')
+
+    if course_filter:
+        supple_qs = supple_qs.filter(course__iexact=course_filter)
+    if branch_filter:
+        supple_qs = supple_qs.filter(branch__iexact=branch_filter)
+
+    if not supple_qs.exists():
+        return Response(
+            {'error': 'No supplementary results found for Year %d Semester %d' % (year_num, sem_num)},
+            status=status.HTTP_404_NOT_FOUND
+        )
+
+    # Group by (course, branch) to create one Exam per group
+    from collections import defaultdict
+    groups = defaultdict(list)
+    for result in supple_qs:
+        key = (result.course or 'btech', result.branch or '')
+        groups[key].append(result)
+
+    created_exams = []
+    total_generated = 0
+    total_skipped = 0
+
+    with transaction.atomic():
+        for (course_key, branch_key), results in groups.items():
+            # Map internal course codes to display names
+            course_display_map = {'btech': 'B.Tech', 'mtech': 'M.Tech'}
+            course_display = course_display_map.get(course_key.lower(), course_key.upper())
+
+            branch_display = branch_key.upper() if branch_key else ''
+            exam_name_parts = [year_label, 'Year', course_display, sem_label, 'Semester',
+                               'Supplementary Examinations']
+            if branch_display:
+                exam_name_parts.insert(2, branch_display)
+            exam_name = ' '.join(exam_name_parts)
+
+            # Get or create the Exam record
+            exam, exam_created = Exam.objects.get_or_create(
+                exam_name=exam_name,
+                defaults={
+                    'year': year_label,
+                    'semester': sem_label,
+                    'course': course_display,
+                    'branch': branch_display,
+                    'exam_center': exam_center,
+                    'exam_start_time': exam_start_time,
+                    'exam_end_time': exam_end_time,
+                    'is_active': True,
+                    'created_by': request.user,
+                }
+            )
+
+            generated_count = 0
+            skipped_count = 0
+
+            for result in results:
+                roll_number = result.roll_number
+                student_name = result.student_name
+
+                # Create or skip enrollment
+                enrollment, enroll_created = ExamEnrollment.objects.get_or_create(
+                    exam=exam,
+                    roll_number=roll_number,
+                    defaults={
+                        'student': result.student,
+                        'student_name': student_name,
+                        'branch': result.branch or '',
+                    }
+                )
+
+                # Generate hall ticket
+                if HallTicket.objects.filter(enrollment=enrollment).exists():
+                    skipped_count += 1
+                    continue
+
+                ht_number = '%d-%s' % (exam.id, roll_number)
+                qr_data = 'SPMVV:HT:%s:%s:%s' % (ht_number, roll_number, exam.exam_name)
+
+                HallTicket.objects.create(
+                    hall_ticket_number=ht_number,
+                    exam=exam,
+                    enrollment=enrollment,
+                    student=result.student,
+                    qr_code_data=qr_data,
+                    status='generated',
+                    download_count=0,
+                    generated_by=request.user,
+                )
+                generated_count += 1
+
+            total_generated += generated_count
+            total_skipped += skipped_count
+            created_exams.append({
+                'exam_id': exam.id,
+                'exam_name': exam_name,
+                'exam_created': exam_created,
+                'generated': generated_count,
+                'skipped': skipped_count,
+            })
+
+    log_audit(request.user, 'supplementary_hall_tickets_generated', {
+        'year': year_num,
+        'semester': sem_num,
+        'total_generated': total_generated,
+        'total_skipped': total_skipped,
+        'ip': request.META.get('REMOTE_ADDR', 'unknown')
+    })
+
+    return Response({
+        'message': 'Supplementary hall tickets generated successfully',
+        'year': year_num,
+        'semester': sem_num,
+        'total_generated': total_generated,
+        'total_skipped': total_skipped,
+        'exams': created_exams,
+    }, status=status.HTTP_201_CREATED)
+

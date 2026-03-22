@@ -12,14 +12,12 @@ const DAYS = ['1', '2', '3', '4', '5', '6'];
 
 const DEFAULT_CONFIG = {
   college_name: 'Sri Padmavati Mahila Visvavidyalayam',
-  working_days: '5',
+  working_days: '6',
   start_time: '09:00',
   period_minutes: '50',
   periods_per_day: '7',
-  lunch_after_period: '3',
+  lunch_after_period: '4',
   lunch_minutes: '40',
-  short_break_after_period: '',
-  short_break_minutes: '10',
   lab_consecutive_periods: '3',
   min_faculty_gap: '1',
 };
@@ -30,49 +28,61 @@ const DEFAULT_CONSTRAINTS = {
   avoid_days: "",
   preferred_days: "",
   locked_slots: [],
+  additional_instructions: "",
 };
+
+// Default short_breaks lives outside config to avoid mixing with solver fields
+const DEFAULT_SHORT_BREAKS = [];  // [{after_period: "2", duration: "10"}, ...]
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function pad2(n) { return String(n).padStart(2, '0'); }
 
-function calcPeriodTimes(config) {
+function calcPeriodTimes(config, shortBreaks = []) {
   const { start_time, period_minutes, periods_per_day,
-          lunch_after_period, lunch_minutes,
-          short_break_after_period, short_break_minutes } = config;
+          lunch_after_period, lunch_minutes } = config;
   if (!start_time || !period_minutes || !periods_per_day) return [];
 
   const [sh, sm] = start_time.split(':').map(Number);
   let mins = sh * 60 + sm;
   const pMins = parseInt(period_minutes, 10) || 50;
-  const lunchAfter = parseInt(lunch_after_period, 10);
+  // lunch_after_period is 1-based (e.g. 4 means after the 4th period)
+  const lunchAfter1 = parseInt(lunch_after_period, 10);  // 1-based
   const lunchMins = parseInt(lunch_minutes, 10) || 40;
-  const breakAfter = short_break_after_period !== ''
-    ? parseInt(short_break_after_period, 10) : null;
-  const breakMins = parseInt(short_break_minutes, 10) || 10;
   const totalPeriods = parseInt(periods_per_day, 10) || 7;
 
-  const slots = [];
-  let teachingIdx = 0;
+  // Build a map: period_number (1-based) → break duration
+  const breakMap = {};
+  for (const b of shortBreaks) {
+    const ap = parseInt(b.after_period, 10);
+    const dur = parseInt(b.duration, 10) || 10;
+    if (!isNaN(ap) && ap > 0) breakMap[ap] = dur;
+  }
 
-  for (let p = 0; p < totalPeriods; p++) {
-    if (!isNaN(lunchAfter) && p === lunchAfter) {
-      const lh = Math.floor(mins / 60), lm = mins % 60;
-      const eh = Math.floor((mins + lunchMins) / 60), em = (mins + lunchMins) % 60;
-      slots.push({ label: 'LUNCH', time: `${pad2(lh)}:${pad2(lm)} – ${pad2(eh)}:${pad2(em)}`, isBreak: true });
-      mins += lunchMins;
-    }
-    if (breakAfter !== null && p === breakAfter) {
-      const bh = Math.floor(mins / 60), bm = mins % 60;
-      const eh = Math.floor((mins + breakMins) / 60), em = (mins + breakMins) % 60;
-      slots.push({ label: 'SHORT BREAK', time: `${pad2(bh)}:${pad2(bm)} – ${pad2(eh)}:${pad2(em)}`, isBreak: true });
-      mins += breakMins;
-    }
+  const slots = [];
+
+  for (let p = 1; p <= totalPeriods; p++) {
     const sh2 = Math.floor(mins / 60), sm2 = mins % 60;
     const endMins = mins + pMins;
     const eh = Math.floor(endMins / 60), em = endMins % 60;
-    slots.push({ label: `Period ${teachingIdx + 1}`, time: `${pad2(sh2)}:${pad2(sm2)} – ${pad2(eh)}:${pad2(em)}`, isBreak: false });
+    slots.push({ label: `Period ${p}`, time: `${pad2(sh2)}:${pad2(sm2)} – ${pad2(eh)}:${pad2(em)}`, isBreak: false });
     mins += pMins;
-    teachingIdx++;
+
+    // Short break after this period?
+    if (breakMap[p] !== undefined) {
+      const bDur = breakMap[p];
+      const bh = Math.floor(mins / 60), bm = mins % 60;
+      const beh = Math.floor((mins + bDur) / 60), bem = (mins + bDur) % 60;
+      slots.push({ label: 'SHORT BREAK', time: `${pad2(bh)}:${pad2(bm)} – ${pad2(beh)}:${pad2(bem)}`, isBreak: true });
+      mins += bDur;
+    }
+
+    // Lunch after this period?
+    if (!isNaN(lunchAfter1) && p === lunchAfter1) {
+      const lh = Math.floor(mins / 60), lm = mins % 60;
+      const leh = Math.floor((mins + lunchMins) / 60), lem = (mins + lunchMins) % 60;
+      slots.push({ label: 'LUNCH', time: `${pad2(lh)}:${pad2(lm)} – ${pad2(leh)}:${pad2(lem)}`, isBreak: true });
+      mins += lunchMins;
+    }
   }
   return slots;
 }
@@ -121,8 +131,8 @@ function InputField({ label, name, value, onChange, type = 'text',
   );
 }
 
-function PeriodPreview({ config }) {
-  const slots = calcPeriodTimes(config);
+function PeriodPreview({ config, shortBreaks }) {
+  const slots = calcPeriodTimes(config, shortBreaks || []);
   if (!slots.length) return null;
   return (
     <div className="mt-3 rounded-lg border border-blue-100 bg-blue-50 p-3">
@@ -150,6 +160,7 @@ function PeriodPreview({ config }) {
 export default function TimetableModal({ isOpen, onClose }) {
   const [step, setStep] = useState(1);
   const [config, setConfig] = useState(DEFAULT_CONFIG);
+  const [shortBreaks, setShortBreaks] = useState(DEFAULT_SHORT_BREAKS);
   const [file, setFile] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -242,6 +253,7 @@ export default function TimetableModal({ isOpen, onClose }) {
       locked_slots:    constraints.locked_slots
         .filter(s => s.section && s.subject_code)
         .map(s => ({ ...s, day: parseInt(s.day, 10), period: parseInt(s.period, 10) })),
+      additional_instructions: constraints.additional_instructions.trim(),
     };
   };
 
@@ -254,7 +266,15 @@ export default function TimetableModal({ isOpen, onClose }) {
     setResult(null);
 
     const form = new FormData();
-    Object.entries(config).forEach(([k, v]) => form.append(k, v));
+    Object.entries(config).forEach(([k, v]) => {
+      form.append(k, v);
+    });
+    // short_breaks: array of {after_period, duration} — values are already 1-based (no offset)
+    form.append("short_breaks", JSON.stringify(
+      shortBreaks
+        .filter(b => b.after_period !== '' && !isNaN(parseInt(b.after_period, 10)))
+        .map(b => ({ after_period: parseInt(b.after_period, 10), duration: parseInt(b.duration, 10) || 10 }))
+    ));
     form.append("custom_constraints", JSON.stringify(buildConstraintsPayload()));
     form.append("file", file);
 
@@ -450,8 +470,19 @@ export default function TimetableModal({ isOpen, onClose }) {
                   Institution
                 </h3>
                 <div className="grid grid-cols-1 gap-4">
-                  <InputField label="College Name" name="college_name" value={config.college_name}
-                    onChange={handleConfigChange} required placeholder="e.g. SPMVV" />
+                  <div>
+                    <FieldLabel required>College Name / Header</FieldLabel>
+                    <textarea
+                      name="college_name"
+                      value={config.college_name}
+                      onChange={handleConfigChange}
+                      rows={3}
+                      placeholder={"e.g. Sri Padmavati Mahila Visvavidyalayam\nDepartment of Computer Science\nAcademic Year 2025-26"}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm
+                                 focus:outline-none focus:ring-2 focus:ring-blue-400 resize-y"
+                    />
+                    <p className="text-xs text-gray-400 mt-0.5">Each line will appear as a separate header line on the timetable PDF.</p>
+                  </div>
                 </div>
                 <p className="text-xs text-gray-400 mt-2 flex items-center gap-1">
                   <FaInfoCircle className="text-blue-400" />
@@ -478,18 +509,68 @@ export default function TimetableModal({ isOpen, onClose }) {
                 </div>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
                   <InputField label="Lunch After Period #" name="lunch_after_period" value={config.lunch_after_period}
-                    onChange={handleConfigChange} type="number" min="0" required
-                    hint="0-indexed. e.g. 3 = after 4th period" />
+                    onChange={handleConfigChange} type="number" min="1" required
+                    hint="e.g. 4 = lunch after the 4th period" />
                   <InputField label="Lunch Duration (min)" name="lunch_minutes" value={config.lunch_minutes}
                     onChange={handleConfigChange} type="number" min="10" max="120" required placeholder="40" />
-                  <InputField label="Short Break After Period #" name="short_break_after_period"
-                    value={config.short_break_after_period} onChange={handleConfigChange}
-                    type="number" min="0" hint="Optional. Leave blank for none." />
-                  <InputField label="Short Break Duration (min)" name="short_break_minutes"
-                    value={config.short_break_minutes} onChange={handleConfigChange}
-                    type="number" min="5" max="30" placeholder="10" />
                 </div>
-                <PeriodPreview config={config} />
+
+                {/* Short Breaks — multi-row */}
+                <div className="mt-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <div>
+                      <FieldLabel>Short Breaks</FieldLabel>
+                      <p className="text-xs text-gray-400 -mt-0.5">Add one row per short break. "After Period #" is 1-based (e.g. 2 = after the 2nd period).</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShortBreaks(prev => [...prev, { after_period: '', duration: '10' }])}
+                      className="flex items-center gap-1 text-xs bg-blue-50 text-blue-700 border border-blue-200 px-3 py-1 rounded-lg hover:bg-blue-100 transition-colors whitespace-nowrap"
+                    >
+                      <FaPlus /> Add Break
+                    </button>
+                  </div>
+                  {shortBreaks.length === 0 && (
+                    <p className="text-xs text-gray-400 italic">No short breaks configured. Click "Add Break" to add one.</p>
+                  )}
+                  <div className="space-y-2">
+                    {shortBreaks.map((b, idx) => (
+                      <div key={idx} className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                        <div className="flex-1 grid grid-cols-2 gap-3">
+                          <div>
+                            <span className="block text-xs text-gray-500 mb-0.5">After Period #</span>
+                            <input
+                              type="number" min="1" max="12"
+                              value={b.after_period}
+                              onChange={e => setShortBreaks(prev => prev.map((x, i) => i === idx ? { ...x, after_period: e.target.value } : x))}
+                              placeholder="e.g. 2"
+                              className="border border-gray-300 rounded px-2 py-1 text-sm w-full focus:outline-none focus:ring-1 focus:ring-blue-400"
+                            />
+                          </div>
+                          <div>
+                            <span className="block text-xs text-gray-500 mb-0.5">Duration (min)</span>
+                            <input
+                              type="number" min="5" max="30"
+                              value={b.duration}
+                              onChange={e => setShortBreaks(prev => prev.map((x, i) => i === idx ? { ...x, duration: e.target.value } : x))}
+                              placeholder="10"
+                              className="border border-gray-300 rounded px-2 py-1 text-sm w-full focus:outline-none focus:ring-1 focus:ring-blue-400"
+                            />
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setShortBreaks(prev => prev.filter((_, i) => i !== idx))}
+                          className="text-red-400 hover:text-red-600 transition-colors mt-3"
+                        >
+                          <FaTrash />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <PeriodPreview config={config} shortBreaks={shortBreaks} />
               </section>
 
               {/* Lab & Faculty */}
@@ -565,7 +646,7 @@ export default function TimetableModal({ isOpen, onClose }) {
                         </button>
                       </div>
                       {constraints.locked_slots.length === 0 && (
-                        <p className="text-xs text-gray-400">No locked slots. Use “Add Slot” to pin a subject to a specific day/period.</p>
+                        <p className="text-xs text-gray-400">No locked slots. Use "Add Slot" to pin a subject to a specific day/period.</p>
                       )}
                       {constraints.locked_slots.map((ls, idx) => (
                         <div key={idx} className="flex flex-wrap gap-2 items-end mb-2 p-2 bg-gray-50 rounded-lg border border-gray-200">
@@ -595,6 +676,22 @@ export default function TimetableModal({ isOpen, onClose }) {
                           </button>
                         </div>
                       ))}
+                    </div>
+
+                    {/* Additional Instructions / Metadata */}
+                    <div>
+                      <FieldLabel>Additional Instructions</FieldLabel>
+                      <textarea
+                        name="additional_instructions"
+                        value={constraints.additional_instructions}
+                        onChange={handleConstraintChange}
+                        rows={4}
+                        placeholder={"e.g. Do not schedule Dr. A Kumar on Friday afternoons.\nAll lab sessions should be in the first half of the day.\nSection A should have English on Monday mornings."}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-y"
+                      />
+                      <p className="text-xs text-gray-400 mt-0.5">
+                        Free-text instructions sent to the AI. These are used to guide the AI summary and explanation — write any scheduling preferences or special rules here.
+                      </p>
                     </div>
                   </div>
                 )}

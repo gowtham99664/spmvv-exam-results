@@ -111,7 +111,7 @@ def _parse_excel(file_obj):
             "type": str(row.get("type", "theory")).strip().lower(),
             "hours_per_week": int(row["hours_per_week"]),
             "faculty_1": str(row["faculty_1"]).strip(),
-            "faculty_2": _parse_optional_str(row.get("faculty_2")) or "",
+            "faculty_2": str(row.get("faculty_2", "") or "").strip(),
             "branch": str(row["branch"]).strip(),
             "year": str(row["year"]).strip(),
             "semester": str(row["semester"]).strip(),
@@ -129,19 +129,8 @@ def _parse_excel(file_obj):
             "whole",
         ):
             subj["lab_split_mode"] = None
-        # Scope the section key so different branches don't collide in the solver.
-        # "ALL" is kept as-is here; the solver expands it using config["sections"].
-        if subj["section"].upper() != "ALL":
-            subj["section"] = _scope_section(
-                subj["branch"], subj["year"], subj["semester"], subj["section"]
-            )
         subjects.append(subj)
     return subjects
-
-
-def _scope_section(branch, year, semester, section_letter):
-    """Return a unique section key scoped to branch/year/semester."""
-    return "{}_{}_{}_{}".format(branch, year, semester, section_letter)
 
 
 def _derive_groups(subjects):
@@ -151,8 +140,7 @@ def _derive_groups(subjects):
     found for that branch+year+semester combo.
 
     Returns a list of group dicts:
-      { branch, year, semester, sections: [scoped_key, ...] }
-    where scoped_key = "BRANCH_YEAR_SEM_SECTION" (e.g. "CSE_2_1_A").
+      { branch, year, semester, sections: [str, ...] }
     """
     from collections import defaultdict
 
@@ -171,41 +159,16 @@ def _derive_groups(subjects):
     groups = []
     for key in sorted(all_keys):
         branch, year, semester = key
-        # Sections from _parse_excel are already scoped (e.g. CSE_2_1_A).
-        # Do NOT call _scope_section again -- that would double-scope them.
-        scoped_secs = sorted(group_sections[key]) if group_sections[key] else [_scope_section(branch, year, semester, "A")]
+        secs = sorted(group_sections[key]) if group_sections[key] else ["A"]
         groups.append(
             {
                 "branch": branch,
                 "year": year,
                 "semester": semester,
-                "sections": scoped_secs,
+                "sections": secs,
             }
         )
     return groups
-
-
-def _build_section_meta(groups):
-    """
-    Build a dict mapping scoped_key -> metadata dict for display.
-    e.g. "CSE_2_1_A" -> {branch, year, semester, section_letter, label}
-    """
-    meta = {}
-    for g in groups:
-        for scoped in g["sections"]:
-            # scoped = "BRANCH_YEAR_SEM_LETTER" — last part is letter
-            parts = scoped.rsplit("_", 1)
-            letter = parts[-1] if len(parts) == 2 else scoped
-            meta[scoped] = {
-                "branch":         g["branch"],
-                "year":           g["year"],
-                "semester":       g["semester"],
-                "section_letter": letter,
-                "label":          "{} Y{}S{} Sec {}".format(
-                    g["branch"], g["year"], g["semester"], letter
-                ),
-            }
-    return meta
 
 
 def _build_config(data):
@@ -470,10 +433,7 @@ def generate_timetable(request):
     else:
         custom_constraints = {}
 
-    # Build section_meta for display labels
-    section_meta = _build_section_meta(groups)
-
-    # Inject scoped section keys into config for solver
+    # Inject sections into config for solver
     all_sections = sorted({sec for g in groups for sec in g["sections"]})
     config["sections"] = all_sections
     config["custom_constraints"] = custom_constraints
@@ -501,7 +461,6 @@ def generate_timetable(request):
             "faculty_solution": faculty_serializable,
             "config": config,
             "groups": groups,
-            "section_meta": section_meta,
             "college_name": college_name,
             "ai_summary": ai_summary,
             "sections": list(solution.keys()),
@@ -535,19 +494,8 @@ def download_timetable(request):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    # Build section_meta from groups for per-section metadata lookup
-    _sm = _build_section_meta(groups) if groups else {}
-
-    # Pick metadata for the requested section (or fall back to first group)
-    _smatch = _sm.get(section) or (_sm.get(list(_sm.keys())[0]) if _sm else None)
-    if _smatch:
-        metadata = {
-            "college_name": college_name,
-            "branch":    _smatch["branch"],
-            "year":      _smatch["year"],
-            "semester":  _smatch["semester"],
-        }
-    elif groups:
+    # Build metadata for PDF/Excel generators (use first group as primary)
+    if groups:
         g0 = groups[0]
         metadata = {
             "college_name": college_name,
@@ -571,13 +519,12 @@ def download_timetable(request):
                 {"error": "Section '{}' not found in solution.".format(section)},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        _sec_letter = _sm.get(section, {}).get("section_letter", section)
-        buf = generate_timetable_pdf(config, full_solution[section], _sec_letter, metadata)
+        buf = generate_timetable_pdf(config, full_solution[section], section, metadata)
         fname = "timetable_{}_Y{}S{}_Sec{}.pdf".format(
             metadata.get("branch", "branch"),
             metadata.get("year", ""),
             metadata.get("semester", ""),
-            _sec_letter,
+            section,
         )
         resp = HttpResponse(buf.read(), content_type="application/pdf")
         resp["Content-Disposition"] = 'attachment; filename="{}"'.format(fname)

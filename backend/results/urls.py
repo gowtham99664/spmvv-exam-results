@@ -91,4 +91,5 @@ urlpatterns = [
     
     # Sample template
     path("hall-tickets/sample-template/", hall_ticket_views.download_sample_template, name="download_hall_ticket_sample_template"),
+    path("hall-tickets/supplementary/generate/", hall_ticket_views.generate_supplementary_hall_tickets, name="generate_supplementary_hall_tickets"),
 ]

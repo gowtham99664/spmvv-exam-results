@@ -210,3 +210,15 @@ export const YEAR_OPTIONS = Array.from({ length: 10 }, (_, i) => {
   const year = new Date().getFullYear() - 5 + i;
   return { value: year, label: year.toString() };
 });
+
+// ==================== SUPPLEMENTARY HALL TICKET GENERATION ====================
+
+export const getSupplementaryCombos = async () => {
+  const response = await api.get('/hall-tickets/supplementary/generate/');
+  return response.data;
+};
+
+export const generateSupplementaryHallTickets = async (payload) => {
+  const response = await api.post('/hall-tickets/supplementary/generate/', payload);
+  return response.data;
+};

@@ -15,7 +15,7 @@ import DetainedStudentsModal from '../components/DetainedStudentsModal';
 import TimetableModal from '../components/TimetableModal';
 import { 
   FaUpload, FaUsers, FaBullhorn, FaIdCard, FaSearch, 
-  FaCalendar, FaTrash, FaChartBar, FaDownload, FaFileExcel, FaUserSlash, FaTable
+  FaCalendar, FaTrash, FaChartBar, FaDownload, FaFileExcel, FaUserSlash, FaTable, FaShieldAlt
 } from 'react-icons/fa';
 
 const AdminDashboard = () => {
@@ -180,8 +180,8 @@ const AdminDashboard = () => {
 
   const handleUpload = async (e) => {
     e.preventDefault();
-    if (!file || !year || !semester || !resultType || !course) {
-      showToast('Please fill all required fields (Course, Year, Semester, Result Type, Excel File)', 'error');
+    if (!file || !year || !semester || !resultType || !course || !examMonth || !examYear) {
+      showToast('Please fill all required fields (Course, Year, Semester, Result Type, Exam Month & Year, Excel File)', 'error');
       return;
     }
     
@@ -310,14 +310,13 @@ const AdminDashboard = () => {
           />
 
           {/* Manage Users Card */}
-          {user?.can_manage_users && (
+          {(user?.role === 'admin' || user?.users_view || user?.users_create || user?.users_edit || user?.users_delete) && (
             <DashboardCard
               title="Manage Users"
               description="Add, edit, or remove user accounts and manage permissions"
               icon={<FaUsers />}
               color="indigo"
               onClick={() => navigate("/user-management")}
-              
             />
           )}
 
@@ -366,6 +365,15 @@ const AdminDashboard = () => {
             icon={<FaTable />}
             color="green"
             onClick={() => setShowTimetableModal(true)}
+          />
+
+          {/* Audit Logs Card */}
+          <DashboardCard
+            title="Audit Logs"
+            description="View session-wise activity logs for all users over the last 5 days"
+            icon={<FaShieldAlt />}
+            color="indigo"
+            onClick={() => navigate("/admin/audit-logs")}
           />
         </div>
 
@@ -552,7 +560,7 @@ const AdminDashboard = () => {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Exam Held Month & Year (Optional)
+                    Exam Held Month & Year <span className="text-red-500">*</span>
                   </label>
                   <div className="grid grid-cols-2 gap-4">
                     <select 
@@ -585,7 +593,7 @@ const AdminDashboard = () => {
                     />
                   </div>
                   <p className="text-xs text-gray-500 mt-1">
-                    Optional: Select month and year for exam name generation
+                    Select month and year for exam name generation
                   </p>
                 </div>
 

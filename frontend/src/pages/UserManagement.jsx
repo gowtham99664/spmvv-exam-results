@@ -7,6 +7,153 @@ import Navbar from '../components/Navbar';
 import Toast from '../components/Toast';
 import useEscapeKey from '../hooks/useEscapeKey';
 
+const EMPTY_FORM = {
+  username: '',
+  password: '',
+  email: '',
+  first_name: '',
+  last_name: '',
+  role: 'student',
+  branch: '',
+  department: '',
+  // Results
+  results_upload: false,
+  results_edit: false,
+  results_delete: false,
+  results_download: false,
+  // Students
+  students_view: false,
+  students_detained_report: false,
+  // Circulars
+  circulars_view: false,
+  circulars_create: false,
+  circulars_edit: false,
+  circulars_delete: false,
+  // Timetable
+  timetable_view: false,
+  timetable_create: false,
+  // Hall Tickets
+  halltickets_view: false,
+  halltickets_create: false,
+  halltickets_generate: false,
+  halltickets_download: false,
+  // Statistics
+  statistics_view: false,
+  // Audit Logs
+  auditlogs_view: false,
+  // User Management
+  users_view: false,
+  users_create: false,
+  users_edit: false,
+  users_delete: false,
+  // Branch Access
+  access_all_branches: false,
+  is_active_user: true,
+};
+
+const PERM_GROUPS = [
+  {
+    label: 'Results',
+    color: 'green',
+    perms: [
+      { key: 'results_upload',   label: 'Upload',   desc: 'Upload exam result Excel files' },
+      { key: 'results_edit',     label: 'Edit',     desc: 'Edit individual subject marks' },
+      { key: 'results_delete',   label: 'Delete',   desc: 'Delete uploaded exam results' },
+      { key: 'results_download', label: 'Download', desc: 'Download result Excel files' },
+    ],
+  },
+  {
+    label: 'Students',
+    color: 'blue',
+    perms: [
+      { key: 'students_view',            label: 'View',           desc: 'Search students and view academic history' },
+      { key: 'students_detained_report', label: 'Detained Report',desc: 'View detained students report' },
+    ],
+  },
+  {
+    label: 'Circulars',
+    color: 'yellow',
+    perms: [
+      { key: 'circulars_view',   label: 'View',   desc: 'View circulars' },
+      { key: 'circulars_create', label: 'Create', desc: 'Create new circulars' },
+      { key: 'circulars_edit',   label: 'Edit',   desc: 'Edit existing circulars' },
+      { key: 'circulars_delete', label: 'Delete', desc: 'Delete circulars' },
+    ],
+  },
+  {
+    label: 'Timetable',
+    color: 'teal',
+    perms: [
+      { key: 'timetable_view',   label: 'View',   desc: 'View and download timetables' },
+      { key: 'timetable_create', label: 'Create', desc: 'Generate and manage timetables' },
+    ],
+  },
+  {
+    label: 'Hall Tickets',
+    color: 'purple',
+    perms: [
+      { key: 'halltickets_view',     label: 'View',     desc: 'View hall ticket exams and enrollments' },
+      { key: 'halltickets_create',   label: 'Create',   desc: 'Create/manage hall ticket exams and upload student lists' },
+      { key: 'halltickets_generate', label: 'Generate', desc: 'Generate hall tickets' },
+      { key: 'halltickets_download', label: 'Download', desc: 'Download hall ticket PDFs' },
+    ],
+  },
+  {
+    label: 'Statistics',
+    color: 'indigo',
+    perms: [
+      { key: 'statistics_view', label: 'View', desc: 'View statistics and reports dashboard' },
+    ],
+  },
+  {
+    label: 'Audit Logs',
+    color: 'orange',
+    perms: [
+      { key: 'auditlogs_view', label: 'View', desc: 'View security and activity audit logs' },
+    ],
+  },
+  {
+    label: 'User Management',
+    color: 'red',
+    perms: [
+      { key: 'users_view',   label: 'View',   desc: 'View the user list' },
+      { key: 'users_create', label: 'Create', desc: 'Create new users' },
+      { key: 'users_edit',   label: 'Edit',   desc: 'Edit users and assign permissions' },
+      { key: 'users_delete', label: 'Delete', desc: 'Delete users' },
+    ],
+  },
+  {
+    label: 'Branch Access',
+    color: 'gray',
+    perms: [
+      { key: 'access_all_branches', label: 'All Branches', desc: 'View data for all branches (overrides branch restriction)' },
+    ],
+  },
+];
+
+// Flat list of all perm keys for mapping
+const ALL_PERM_KEYS = PERM_GROUPS.flatMap(g => g.perms.map(p => p.key));
+
+// Badge colour lookup for table column
+const BADGE_COLORS = {
+  green:  'bg-green-100 text-green-800',
+  blue:   'bg-blue-100 text-blue-800',
+  yellow: 'bg-yellow-100 text-yellow-800',
+  teal:   'bg-teal-100 text-teal-800',
+  purple: 'bg-purple-100 text-purple-800',
+  indigo: 'bg-indigo-100 text-indigo-800',
+  orange: 'bg-orange-100 text-orange-800',
+  red:    'bg-red-100 text-red-800',
+  gray:   'bg-gray-100 text-gray-800',
+};
+
+const PERM_BADGE = {};
+PERM_GROUPS.forEach(g => {
+  g.perms.forEach(p => {
+    PERM_BADGE[p.key] = { label: `${g.label}: ${p.label}`, color: BADGE_COLORS[g.color] };
+  });
+});
+
 const UserManagement = () => {
   const { user: currentUser } = useAuth();
   const navigate = useNavigate();
@@ -21,47 +168,24 @@ const UserManagement = () => {
   const [modalMode, setModalMode] = useState('create');
   const [selectedUser, setSelectedUser] = useState(null);
   const [toast, setToast] = useState(null);
-
-  const [formData, setFormData] = useState({
-    username: '',
-    password: '',
-    email: '',
-    first_name: '',
-    last_name: '',
-    role: 'student',
-    branch: '',
-    department: '',
-    can_view_statistics: false,
-    can_upload_results: false,
-    can_delete_results: false,
-    can_manage_users: false,
-    can_view_all_branches: false,
-    is_active_user: true
-  });
-
-  const [passwordData, setPasswordData] = useState({
-    new_password: '',
-    confirm_password: ''
-  });
+  const [formData, setFormData] = useState(EMPTY_FORM);
+  const [passwordData, setPasswordData] = useState({ new_password: '', confirm_password: '' });
 
   const roleOptions = [
-    { value: 'faculty', label: 'Faculty' },
-    { value: 'staff', label: 'Staff' },
-    { value: 'hod', label: 'Head of Department (HOD)' },
-    { value: 'dean', label: 'Dean' },
+    { value: 'faculty',        label: 'Faculty' },
+    { value: 'staff',          label: 'Staff' },
+    { value: 'hod',            label: 'Head of Department (HOD)' },
+    { value: 'dean',           label: 'Dean' },
     { value: 'vice_principal', label: 'Vice Principal' },
-    { value: 'principal', label: 'Principal' },
-    { value: 'admin', label: 'Admin' },
+    { value: 'principal',      label: 'Principal' },
+    { value: 'admin',          label: 'Admin' },
   ];
 
-  // ESC key handlers to close modals
   useEscapeKey(() => setShowUserModal(false), showUserModal);
   useEscapeKey(() => setShowPasswordModal(false), showPasswordModal);
   useEscapeKey(() => setShowBulkDeleteConfirm(false), showBulkDeleteConfirm);
 
-  useEffect(() => {
-    fetchUsers();
-  }, []);
+  useEffect(() => { fetchUsers(); }, []);
 
   const fetchUsers = async () => {
     try {
@@ -70,311 +194,181 @@ const UserManagement = () => {
       setUsers(response.data.users || response.data);
     } catch (error) {
       showToast('Failed to fetch users', 'error');
-      console.error('Error fetching users:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  const showToast = (message, type = 'success') => {
-    setToast({ message, type });
-  };
+  const showToast = (message, type = 'success') => setToast({ message, type });
 
-  // Filter users based on search term
   useEffect(() => {
     if (searchTerm.trim() === '') {
       setFilteredUsers(users);
     } else {
-      const filtered = users.filter(user =>
-        user.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        user.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        user.first_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        user.last_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        user.role.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        user.branch?.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-      setFilteredUsers(filtered);
+      const q = searchTerm.toLowerCase();
+      setFilteredUsers(users.filter(u =>
+        u.username.toLowerCase().includes(q) ||
+        u.email?.toLowerCase().includes(q) ||
+        u.first_name?.toLowerCase().includes(q) ||
+        u.last_name?.toLowerCase().includes(q) ||
+        u.role.toLowerCase().includes(q) ||
+        u.branch?.toLowerCase().includes(q)
+      ));
     }
   }, [searchTerm, users]);
 
-  // Handle bulk selection
+  const canSelectUser = (u) =>
+    u.username !== currentUser.username && !(u.username === 'admin' && u.role === 'admin');
+
   const handleSelectAll = () => {
-    // Filter out current user AND default admin account
-    const selectableUsers = filteredUsers.filter(u => 
-      u.username !== currentUser.username && 
-      !(u.username === 'admin' && u.role === 'admin')
+    const selectable = filteredUsers.filter(canSelectUser);
+    setSelectedUsers(
+      selectedUsers.length === selectable.length ? [] : selectable.map(u => u.id)
     );
-    
-    if (selectedUsers.length === selectableUsers.length) {
-      setSelectedUsers([]);
-    } else {
-      setSelectedUsers(selectableUsers.map(u => u.id));
-    }
   };
 
-  const handleSelectUser = (userId) => {
-    if (selectedUsers.includes(userId)) {
-      setSelectedUsers(selectedUsers.filter(id => id !== userId));
-    } else {
-      setSelectedUsers([...selectedUsers, userId]);
-    }
-  };
-  
-  // Helper function to check if user can be selected
-  const canSelectUser = (user) => {
-    return user.username !== currentUser.username && 
-           !(user.username === 'admin' && user.role === 'admin');
-  };
+  const handleSelectUser = (id) =>
+    setSelectedUsers(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
 
-  // Handle bulk delete
   const handleBulkDelete = async () => {
-    try {
-      console.log('Starting bulk delete for user IDs:', selectedUsers);
-      
-      // Filter out current user and default admin from selection
-      const usersToDelete = users.filter(u => 
-        selectedUsers.includes(u.id) && 
-        u.username !== currentUser.username &&
-        !(u.username === 'admin' && u.role === 'admin')
-      );
-      
-      if (usersToDelete.length === 0) {
-        showToast('No users selected for deletion', 'error');
-        setShowBulkDeleteConfirm(false);
-        return;
-      }
-      
-      const deletePromises = usersToDelete.map(user => {
-        console.log(`Deleting user: ${user.username} (ID: ${user.id})`);
-        return api.delete(`/users/${user.id}/delete/`);
-      });
-      
-      const results = await Promise.allSettled(deletePromises);
-      
-      const successful = results.filter(r => r.status === 'fulfilled').length;
-      const failed = results.filter(r => r.status === 'rejected').length;
-      
-      if (failed > 0) {
-        showToast(`Deleted ${successful} user(s), ${failed} failed`, 'warning');
-        console.error('Some deletions failed:', results.filter(r => r.status === 'rejected'));
-      } else {
-        showToast(`${successful} user(s) deleted successfully`, 'success');
-      }
-      
-      setSelectedUsers([]);
-      setShowBulkDeleteConfirm(false);
-      fetchUsers();
-    } catch (error) {
-      showToast('Failed to delete users', 'error');
-      console.error('Error in bulk delete:', error);
-    }
+    const toDelete = users.filter(u => selectedUsers.includes(u.id) && canSelectUser(u));
+    if (!toDelete.length) { showToast('No users selected for deletion', 'error'); setShowBulkDeleteConfirm(false); return; }
+    const results = await Promise.allSettled(toDelete.map(u => api.delete(`/users/${u.id}/delete/`)));
+    const ok = results.filter(r => r.status === 'fulfilled').length;
+    const fail = results.filter(r => r.status === 'rejected').length;
+    showToast(fail ? `Deleted ${ok}, ${fail} failed` : `${ok} user(s) deleted`, fail ? 'warning' : 'success');
+    setSelectedUsers([]);
+    setShowBulkDeleteConfirm(false);
+    fetchUsers();
   };
+
+  const buildFormFromUser = (u) => ({
+    username:              u.username,
+    password:              '',
+    email:                 u.email || '',
+    first_name:            u.first_name || '',
+    last_name:             u.last_name || '',
+    role:                  u.role,
+    branch:                u.branch || '',
+    department:            u.department || '',
+    ...Object.fromEntries(ALL_PERM_KEYS.map(k => [k, u[k] || false])),
+    is_active_user: u.is_active_user !== undefined ? u.is_active_user : true,
+  });
 
   const handleCreateUser = () => {
     setModalMode('create');
-    setFormData({
-      username: '',
-      password: '',
-      email: '',
-      first_name: '',
-      last_name: '',
-      role: 'student',
-      branch: '',
-      department: '',
-      can_view_statistics: false,
-      can_upload_results: false,
-      can_delete_results: false,
-      can_manage_users: false,
-      can_view_all_branches: false,
-      is_active_user: true
-    });
+    setFormData(EMPTY_FORM);
     setShowUserModal(true);
   };
 
-  const handleEditUser = (user) => {
+  const handleEditUser = (u) => {
     setModalMode('edit');
-    setSelectedUser(user);
-    setFormData({
-      username: user.username,
-      password: '',
-      email: user.email || '',
-      first_name: user.first_name || '',
-      last_name: user.last_name || '',
-      role: user.role,
-      branch: user.branch || '',
-      department: user.department || '',
-      can_view_statistics: user.can_view_statistics || false,
-      can_upload_results: user.can_upload_results || false,
-      can_delete_results: user.can_delete_results || false,
-      can_manage_users: user.can_manage_users || false,
-      can_view_all_branches: user.can_view_all_branches || false,
-      is_active_user: user.is_active_user !== undefined ? user.is_active_user : true
-    });
+    setSelectedUser(u);
+    setFormData(buildFormFromUser(u));
     setShowUserModal(true);
   };
 
-  const handleResetPassword = (user) => {
-    setSelectedUser(user);
+  const handleResetPassword = (u) => {
+    setSelectedUser(u);
     setPasswordData({ new_password: '', confirm_password: '' });
     setShowPasswordModal(true);
   };
 
-  const handleDeleteUser = async (user) => {
-    if (user.username === currentUser.username) {
-      showToast('You cannot delete your own account', 'error');
-      return;
-    }
-
-    if (!window.confirm(`Are you sure you want to delete user "${user.username}"?`)) {
-      return;
-    }
-
+  const handleDeleteUser = async (u) => {
+    if (u.username === currentUser.username) { showToast('You cannot delete your own account', 'error'); return; }
+    if (!window.confirm(`Delete user "${u.username}"?`)) return;
     try {
-      await api.delete(`/users/${user.id}/delete/`);
-      showToast('User deleted successfully', 'success');
+      await api.delete(`/users/${u.id}/delete/`);
+      showToast('User deleted successfully');
       fetchUsers();
-    } catch (error) {
-      showToast('Failed to delete user', 'error');
-      console.error('Error deleting user:', error);
-    }
+    } catch { showToast('Failed to delete user', 'error'); }
   };
 
   const handleSubmitUser = async (e) => {
     e.preventDefault();
-
-    if (!formData.username || !formData.role) {
-      showToast('Username and role are required', 'error');
-      return;
-    }
-
-    if (modalMode === 'create' && !formData.password) {
-      showToast('Password is required for new users', 'error');
-      return;
-    }
-
+    if (!formData.username || !formData.role) { showToast('Username and role are required', 'error'); return; }
+    if (modalMode === 'create' && !formData.password) { showToast('Password is required for new users', 'error'); return; }
     try {
       if (modalMode === 'create') {
         await api.post('/users/create/', formData);
-        showToast('User created successfully', 'success');
+        showToast('User created successfully');
       } else {
         await api.put(`/users/${selectedUser.id}/update/`, formData);
-        showToast('User updated successfully', 'success');
+        showToast('User updated successfully');
       }
       setShowUserModal(false);
       fetchUsers();
     } catch (error) {
-      const errorMsg = error.response?.data?.error || 'Failed to save user';
-      showToast(errorMsg, 'error');
-      console.error('Error saving user:', error);
+      showToast(error.response?.data?.error || 'Failed to save user', 'error');
     }
   };
 
   const handleSubmitPassword = async (e) => {
     e.preventDefault();
-
-    if (!passwordData.new_password) {
-      showToast('Password is required', 'error');
-      return;
-    }
-
-    if (passwordData.new_password !== passwordData.confirm_password) {
-      showToast('Passwords do not match', 'error');
-      return;
-    }
-
+    if (!passwordData.new_password) { showToast('Password is required', 'error'); return; }
+    if (passwordData.new_password !== passwordData.confirm_password) { showToast('Passwords do not match', 'error'); return; }
     try {
-      await api.post(`/users/${selectedUser.id}/reset-password/`, {
-        new_password: passwordData.new_password
-      });
-      showToast('Password reset successfully', 'success');
+      await api.post(`/users/${selectedUser.id}/reset-password/`, { new_password: passwordData.new_password });
+      showToast('Password reset successfully');
       setShowPasswordModal(false);
-    } catch (error) {
-      showToast('Failed to reset password', 'error');
-      console.error('Error resetting password:', error);
-    }
+    } catch { showToast('Failed to reset password', 'error'); }
   };
 
-  const getRoleBadgeClass = (role) => {
-    const classes = {
-      admin: 'bg-red-500',
-      dean: 'bg-purple-600',
-      vice_principal: 'bg-purple-500',
-      principal: 'bg-indigo-500',
-      hod: 'bg-blue-500',
-      faculty: 'bg-green-500',
-      staff: 'bg-teal-500',
-      student: 'bg-gray-500'
-    };
-    return classes[role] || 'bg-gray-500';
-  };
+  const getRoleBadgeClass = (role) => ({
+    admin:          'bg-red-500',
+    dean:           'bg-purple-600',
+    vice_principal: 'bg-purple-500',
+    principal:      'bg-indigo-500',
+    hod:            'bg-blue-500',
+    faculty:        'bg-green-500',
+    staff:          'bg-teal-500',
+    student:        'bg-gray-500',
+  }[role] || 'bg-gray-500');
 
-  const getRoleLabel = (role) => {
-    const labels = {
-      admin: 'Admin',
-      dean: 'Dean',
-      vice_principal: 'Vice Principal',
-      principal: 'Principal',
-      hod: 'HOD',
-      faculty: 'Faculty',
-      staff: 'Staff',
-      student: 'Student'
-    };
-    return labels[role] || role;
-  };
+  const getRoleLabel = (role) => ({
+    admin: 'Admin', dean: 'Dean', vice_principal: 'Vice Principal',
+    principal: 'Principal', hod: 'HOD', faculty: 'Faculty', staff: 'Staff', student: 'Student',
+  }[role] || role);
 
-  const handleFormChange = (field, value) => {
+  const handleFormChange = (field, value) =>
     setFormData(prev => ({ ...prev, [field]: value }));
-  };
+
+  // Active permissions for display in table
+  const activePerms = (u) => ALL_PERM_KEYS.filter(k => u[k]);
 
   return (
     <div className="min-h-screen bg-gray-50">
       <Navbar />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Header */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900">User Management</h1>
           <p className="text-gray-600 mt-2">Manage user accounts and permissions</p>
         </div>
 
-        {/* Action Bar */}
         <div className="bg-white rounded-lg shadow-md p-6 mb-6">
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-xl font-bold text-gray-900">Users</h2>
-            <button
-              onClick={handleCreateUser}
-              className="flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              <FaPlus />
-              <span>Create User</span>
+            <button onClick={handleCreateUser}
+              className="flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">
+              <FaPlus /><span>Create User</span>
             </button>
           </div>
 
-          {/* Search Bar and Bulk Actions */}
           <div className="mb-6 flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
             <div className="flex-1 max-w-md">
               <div className="relative">
                 <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-                <input
-                  type="text"
-                  placeholder="Search by username, email, role, or branch..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
+                <input type="text" placeholder="Search by username, email, role, or branch..."
+                  value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
               </div>
             </div>
-            
             {selectedUsers.length > 0 && (
               <div className="flex items-center space-x-3">
-                <span className="text-sm text-gray-600">
-                  {selectedUsers.length} user(s) selected
-                </span>
-                <button
-                  onClick={() => setShowBulkDeleteConfirm(true)}
-                  className="flex items-center space-x-2 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors"
-                >
-                  <FaTrash />
-                  <span>Delete Selected</span>
+                <span className="text-sm text-gray-600">{selectedUsers.length} user(s) selected</span>
+                <button onClick={() => setShowBulkDeleteConfirm(true)}
+                  className="flex items-center space-x-2 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors">
+                  <FaTrash /><span>Delete Selected</span>
                 </button>
               </div>
             )}
@@ -391,135 +385,87 @@ const UserManagement = () => {
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="px-4 py-3 text-left">
-                      <button
-                        onClick={handleSelectAll}
-                        className="text-gray-600 hover:text-blue-600"
-                        title={selectedUsers.length === filteredUsers.length ? "Deselect All" : "Select All"}
-                      >
-                        {selectedUsers.length === filteredUsers.length && filteredUsers.length > 0 ? <FaCheckSquare className="text-blue-600" /> : <FaSquare />}
+                      <button onClick={handleSelectAll} className="text-gray-600 hover:text-blue-600"
+                        title={selectedUsers.length === filteredUsers.filter(canSelectUser).length ? 'Deselect All' : 'Select All'}>
+                        {selectedUsers.length > 0 && selectedUsers.length === filteredUsers.filter(canSelectUser).length
+                          ? <FaCheckSquare className="text-blue-600" /> : <FaSquare />}
                       </button>
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      User
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Role
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Branch/Dept
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Permissions
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Status
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Actions
-                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Branch/Dept</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Permissions</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {filteredUsers.map((user) => (
-                    <tr key={user.id} className={`hover:bg-gray-50 ${selectedUsers.includes(user.id) ? 'bg-blue-50' : ''}`}>
+                  {filteredUsers.map((u) => (
+                    <tr key={u.id} className={`hover:bg-gray-50 ${selectedUsers.includes(u.id) ? 'bg-blue-50' : ''}`}>
                       <td className="px-4 py-4">
-                        <button
-                          onClick={() => handleSelectUser(user.id)}
+                        <button onClick={() => canSelectUser(u) && handleSelectUser(u.id)}
                           className="text-gray-600 hover:text-blue-600"
-                          disabled={!canSelectUser(user)}
-                          title={!canSelectUser(user) ? "Cannot select this user" : ""}
-                        >
-                          {selectedUsers.includes(user.id) ? <FaCheckSquare className="text-blue-600" /> : <FaSquare />}
+                          disabled={!canSelectUser(u)} title={!canSelectUser(u) ? 'Cannot select this user' : ''}>
+                          {selectedUsers.includes(u.id) ? <FaCheckSquare className="text-blue-600" /> : <FaSquare />}
                         </button>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex flex-col">
-                          <div className="text-sm font-medium text-gray-900">{user.username}</div>
-                          <div className="text-sm text-gray-500">
-                            {user.first_name} {user.last_name}
-                          </div>
-                          {user.email && (
-                            <div className="text-xs text-gray-400">{user.email}</div>
-                          )}
-                        </div>
+                        <div className="text-sm font-medium text-gray-900">{u.username}</div>
+                        <div className="text-sm text-gray-500">{u.first_name} {u.last_name}</div>
+                        {u.email && <div className="text-xs text-gray-400">{u.email}</div>}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getRoleBadgeClass(user.role)} text-white`}>
-                          {getRoleLabel(user.role)}
+                        <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getRoleBadgeClass(u.role)} text-white`}>
+                          {getRoleLabel(u.role)}
                         </span>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-900">
-                          {user.branch && <div>Branch: {user.branch}</div>}
-                          {user.department && <div className="text-xs text-gray-500">{user.department}</div>}
-                          {!user.branch && !user.department && <span className="text-gray-400">N/A</span>}
-                        </div>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {u.branch && <div>Branch: {u.branch}</div>}
+                        {u.department && <div className="text-xs text-gray-500">{u.department}</div>}
+                        {!u.branch && !u.department && <span className="text-gray-400">N/A</span>}
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex flex-wrap gap-1">
-                          {user.can_view_statistics && (
-                            <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">Statistics</span>
-                          )}
-                          {user.can_upload_results && (
-                            <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">Upload</span>
-                          )}
-                          {user.can_delete_results && (
-                            <span className="text-xs bg-red-100 text-red-800 px-2 py-1 rounded">Delete</span>
-                          )}
-                          {user.can_manage_users && (
-                            <span className="text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded">Manage Users</span>
-                          )}
-                          {user.can_view_all_branches && (
-                            <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded">All Branches</span>
+                          {u.role === 'admin' ? (
+                            <span className="text-xs px-2 py-0.5 rounded bg-purple-100 text-purple-800 font-semibold">All Access</span>
+                          ) : activePerms(u).length === 0 ? (
+                            <span className="text-xs text-gray-400">None</span>
+                          ) : (
+                            activePerms(u).map(k => (
+                              <span key={k} className={`text-xs px-2 py-0.5 rounded ${PERM_BADGE[k]?.color || 'bg-gray-100 text-gray-800'}`}>
+                                {PERM_BADGE[k]?.label || k}
+                              </span>
+                            ))
                           )}
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${user.is_active_user ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-                          {user.is_active_user ? 'Active' : 'Inactive'}
+                        <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${u.is_active_user ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                          {u.is_active_user ? 'Active' : 'Inactive'}
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                         <div className="flex space-x-2">
-                          <button
-                            onClick={() => handleEditUser(user)}
-                            className="text-blue-600 hover:text-blue-900"
-                            title="Edit User"
-                          >
-                            <FaEdit />
-                          </button>
-                          <button
-                            onClick={() => handleResetPassword(user)}
-                            className="text-orange-600 hover:text-orange-900"
-                            title="Reset Password"
-                          >
-                            <FaKey />
-                          </button>
-                          <button
-                            onClick={() => handleDeleteUser(user)}
-                            className={`text-red-600 hover:text-red-900 ${user.username === currentUser.username ? 'opacity-50 cursor-not-allowed' : ''}`}
-                            title="Delete User"
-                            disabled={user.username === currentUser.username}
-                          >
-                            <FaTrash />
-                          </button>
+                          <button onClick={() => handleEditUser(u)} className="text-blue-600 hover:text-blue-900" title="Edit User"><FaEdit /></button>
+                          <button onClick={() => handleResetPassword(u)} className="text-orange-600 hover:text-orange-900" title="Reset Password"><FaKey /></button>
+                          <button onClick={() => handleDeleteUser(u)}
+                            className={`text-red-600 hover:text-red-900 ${u.username === currentUser.username ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            title="Delete User" disabled={u.username === currentUser.username}><FaTrash /></button>
                         </div>
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-
-              {users.length === 0 && (
-                <div className="text-center py-12">
-                  <p className="text-gray-500">No users found</p>
-                </div>
+              {filteredUsers.length === 0 && (
+                <div className="text-center py-12"><p className="text-gray-500">No users found</p></div>
               )}
             </div>
           )}
         </div>
       </div>
 
+      {/* ── Create / Edit User Modal ── */}
       {showUserModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
@@ -527,230 +473,116 @@ const UserManagement = () => {
               <h2 className="text-2xl font-bold text-gray-800">
                 {modalMode === 'create' ? 'Create New User' : 'Edit User'}
               </h2>
-              <button
-                onClick={() => setShowUserModal(false)}
-                className="text-gray-500 hover:text-gray-700"
-              >
+              <button onClick={() => setShowUserModal(false)} className="text-gray-500 hover:text-gray-700">
                 <FaTimes size={24} />
               </button>
             </div>
 
             <form onSubmit={handleSubmitUser} className="p-6">
+              {/* Basic info */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Username *
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.username}
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Username *</label>
+                  <input type="text" value={formData.username}
                     onChange={(e) => handleFormChange('username', e.target.value)}
                     disabled={modalMode === 'edit'}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
-                    required
-                  />
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100" required />
                 </div>
-
                 {modalMode === 'create' && (
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Password *
-                    </label>
-                    <input
-                      type="password"
-                      value={formData.password}
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Password *</label>
+                    <input type="password" value={formData.password}
                       onChange={(e) => handleFormChange('password', e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                      required
-                    />
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" required />
                   </div>
                 )}
-
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Email
-                  </label>
-                  <input
-                    type="email"
-                    value={formData.email}
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
+                  <input type="email" value={formData.email}
                     onChange={(e) => handleFormChange('email', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  />
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" />
                 </div>
-
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    First Name
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.first_name}
+                  <label className="block text-sm font-medium text-gray-700 mb-2">First Name</label>
+                  <input type="text" value={formData.first_name}
                     onChange={(e) => handleFormChange('first_name', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  />
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" />
                 </div>
-
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Last Name
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.last_name}
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Last Name</label>
+                  <input type="text" value={formData.last_name}
                     onChange={(e) => handleFormChange('last_name', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  />
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" />
                 </div>
-
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Role *
-                  </label>
-                  <select
-                    value={formData.role}
-                    onChange={(e) => handleFormChange('role', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    required
-                  >
-                    {roleOptions.map(option => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Role *</label>
+                  <select value={formData.role} onChange={(e) => handleFormChange('role', e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" required>
+                    {roleOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                   </select>
                 </div>
-
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Branch
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.branch}
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Branch</label>
+                  <input type="text" value={formData.branch}
                     onChange={(e) => handleFormChange('branch', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                     placeholder="e.g., CSE, ECE, MECH"
-                  />
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" />
                   <p className="text-xs text-gray-500 mt-1">Leave empty for access to all branches</p>
                 </div>
-
                 <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Department
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.department}
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Department</label>
+                  <input type="text" value={formData.department}
                     onChange={(e) => handleFormChange('department', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                     placeholder="e.g., Computer Science & Engineering"
-                  />
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" />
                 </div>
               </div>
 
+              {/* Permissions */}
               <div className="border-t pt-6 mb-6">
-                <h3 className="text-lg font-semibold text-gray-800 mb-4">Dashboard Access Permissions</h3>
-                <p className="text-sm text-gray-600 mb-4">Select which features this user can access in the system:</p>
-                
-                <div className="space-y-3">
-                  <div className="flex items-start">
-                    <input
-                      type="checkbox"
-                      id="can_view_statistics"
-                      checked={formData.can_view_statistics}
-                      onChange={(e) => handleFormChange('can_view_statistics', e.target.checked)}
-                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded mt-1"
-                    />
-                    <label htmlFor="can_view_statistics" className="ml-3 block">
-                      <span className="text-sm font-medium text-gray-700">Can View Statistics</span>
-                      <p className="text-xs text-gray-500">Access to statistics, reports, and analytics dashboard</p>
-                    </label>
-                  </div>
+                <h3 className="text-lg font-semibold text-gray-800 mb-1">Permissions</h3>
+                <p className="text-sm text-gray-500 mb-4">Select which features and actions this user can perform:</p>
 
-                  <div className="flex items-start">
-                    <input
-                      type="checkbox"
-                      id="can_upload_results"
-                      checked={formData.can_upload_results}
-                      onChange={(e) => handleFormChange('can_upload_results', e.target.checked)}
-                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded mt-1"
-                    />
-                    <label htmlFor="can_upload_results" className="ml-3 block">
-                      <span className="text-sm font-medium text-gray-700">Can Upload Results</span>
-                      <p className="text-xs text-gray-500">Upload exam results via Excel files</p>
-                    </label>
-                  </div>
+                <div className="space-y-5">
+                  {PERM_GROUPS.map(group => (
+                    <div key={group.label} className="border border-gray-100 rounded-lg p-4 bg-gray-50">
+                      <p className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-3">{group.label}</p>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                        {group.perms.map(p => (
+                          <div key={p.key} className="flex items-start">
+                            <input type="checkbox" id={p.key} checked={formData[p.key]}
+                              onChange={(e) => handleFormChange(p.key, e.target.checked)}
+                              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded mt-1" />
+                            <label htmlFor={p.key} className="ml-3 block">
+                              <span className="text-sm font-medium text-gray-700">{p.label}</span>
+                              <p className="text-xs text-gray-500">{p.desc}</p>
+                            </label>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
 
-                  <div className="flex items-start">
-                    <input
-                      type="checkbox"
-                      id="can_delete_results"
-                      checked={formData.can_delete_results}
-                      onChange={(e) => handleFormChange('can_delete_results', e.target.checked)}
-                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded mt-1"
-                    />
-                    <label htmlFor="can_delete_results" className="ml-3 block">
-                      <span className="text-sm font-medium text-gray-700">Can Delete Results</span>
-                      <p className="text-xs text-gray-500">Delete exam result records from the system</p>
-                    </label>
-                  </div>
-
-                  <div className="flex items-start">
-                    <input
-                      type="checkbox"
-                      id="can_manage_users"
-                      checked={formData.can_manage_users}
-                      onChange={(e) => handleFormChange('can_manage_users', e.target.checked)}
-                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded mt-1"
-                    />
-                    <label htmlFor="can_manage_users" className="ml-3 block">
-                      <span className="text-sm font-medium text-gray-700">Can Manage Users</span>
-                      <p className="text-xs text-gray-500">Create, edit, and delete user accounts</p>
-                    </label>
-                  </div>
-
-                  <div className="flex items-start">
-                    <input
-                      type="checkbox"
-                      id="can_view_all_branches"
-                      checked={formData.can_view_all_branches}
-                      onChange={(e) => handleFormChange('can_view_all_branches', e.target.checked)}
-                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded mt-1"
-                    />
-                    <label htmlFor="can_view_all_branches" className="ml-3 block">
-                      <span className="text-sm font-medium text-gray-700">Can View All Branches</span>
-                      <p className="text-xs text-gray-500">Override branch restriction to view all branches (if branch is specified above, this allows viewing beyond that branch)</p>
-                    </label>
-                  </div>
-
-                  <div className="flex items-start border-t pt-3 mt-3">
-                    <input
-                      type="checkbox"
-                      id="is_active_user"
-                      checked={formData.is_active_user}
-                      onChange={(e) => handleFormChange('is_active_user', e.target.checked)}
-                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded mt-1"
-                    />
-                    <label htmlFor="is_active_user" className="ml-3 block">
-                      <span className="text-sm font-medium text-gray-700">Account is Active</span>
-                      <p className="text-xs text-gray-500">User can login to the system (uncheck to disable account)</p>
-                    </label>
+                  {/* Account status — separate */}
+                  <div className="border-t pt-4">
+                    <div className="flex items-start">
+                      <input type="checkbox" id="is_active_user" checked={formData.is_active_user}
+                        onChange={(e) => handleFormChange('is_active_user', e.target.checked)}
+                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded mt-1" />
+                      <label htmlFor="is_active_user" className="ml-3 block">
+                        <span className="text-sm font-medium text-gray-700">Account is Active</span>
+                        <p className="text-xs text-gray-500">User can log in (uncheck to disable account)</p>
+                      </label>
+                    </div>
                   </div>
                 </div>
               </div>
 
               <div className="flex justify-end space-x-3">
-                <button
-                  type="button"
-                  onClick={() => setShowUserModal(false)}
-                  className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                >
+                <button type="button" onClick={() => setShowUserModal(false)}
+                  className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">Cancel</button>
+                <button type="submit"
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
                   {modalMode === 'create' ? 'Create User' : 'Update User'}
                 </button>
               </div>
@@ -759,66 +591,36 @@ const UserManagement = () => {
         </div>
       )}
 
+      {/* ── Reset Password Modal ── */}
       {showPasswordModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
             <div className="flex justify-between items-center p-6 border-b">
-              <h2 className="text-2xl font-bold text-gray-800">
-                Reset Password
-              </h2>
-              <button
-                onClick={() => setShowPasswordModal(false)}
-                className="text-gray-500 hover:text-gray-700"
-              >
+              <h2 className="text-2xl font-bold text-gray-800">Reset Password</h2>
+              <button onClick={() => setShowPasswordModal(false)} className="text-gray-500 hover:text-gray-700">
                 <FaTimes size={24} />
               </button>
             </div>
-
             <form onSubmit={handleSubmitPassword} className="p-6">
-              <p className="text-gray-600 mb-4">
-                Reset password for user: <strong>{selectedUser?.username}</strong>
-              </p>
-
+              <p className="text-gray-600 mb-4">Reset password for: <strong>{selectedUser?.username}</strong></p>
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    New Password *
-                  </label>
-                  <input
-                    type="password"
-                    value={passwordData.new_password}
+                  <label className="block text-sm font-medium text-gray-700 mb-2">New Password *</label>
+                  <input type="password" value={passwordData.new_password}
                     onChange={(e) => setPasswordData(prev => ({ ...prev, new_password: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    required
-                  />
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" required />
                 </div>
-
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Confirm Password *
-                  </label>
-                  <input
-                    type="password"
-                    value={passwordData.confirm_password}
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Confirm Password *</label>
+                  <input type="password" value={passwordData.confirm_password}
                     onChange={(e) => setPasswordData(prev => ({ ...prev, confirm_password: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    required
-                  />
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" required />
                 </div>
               </div>
-
               <div className="mt-6 flex justify-end space-x-3">
-                <button
-                  type="button"
-                  onClick={() => setShowPasswordModal(false)}
-                  className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700"
-                >
+                <button type="button" onClick={() => setShowPasswordModal(false)}
+                  className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">Cancel</button>
+                <button type="submit" className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700">
                   Reset Password
                 </button>
               </div>
@@ -827,57 +629,31 @@ const UserManagement = () => {
         </div>
       )}
 
-
-      {/* Bulk Delete Confirmation Modal */}
+      {/* ── Bulk Delete Confirmation ── */}
       {showBulkDeleteConfirm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
             <div className="flex justify-between items-center p-6 border-b">
-              <h2 className="text-xl font-bold text-gray-800">
-                Confirm Bulk Delete
-              </h2>
-              <button
-                onClick={() => setShowBulkDeleteConfirm(false)}
-                className="text-gray-500 hover:text-gray-700"
-              >
+              <h2 className="text-xl font-bold text-gray-800">Confirm Bulk Delete</h2>
+              <button onClick={() => setShowBulkDeleteConfirm(false)} className="text-gray-500 hover:text-gray-700">
                 <FaTimes size={20} />
               </button>
             </div>
-
             <div className="p-6">
-              <p className="text-gray-600 mb-4">
-                Are you sure you want to delete <strong>{selectedUsers.length}</strong> selected user(s)?
-              </p>
-              <p className="text-sm text-red-600">
-                This action cannot be undone.
-              </p>
+              <p className="text-gray-600 mb-2">Delete <strong>{selectedUsers.length}</strong> selected user(s)?</p>
+              <p className="text-sm text-red-600">This action cannot be undone.</p>
             </div>
-
             <div className="flex justify-end space-x-3 p-6 border-t">
-              <button
-                onClick={() => setShowBulkDeleteConfirm(false)}
-                className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleBulkDelete}
-                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
-              >
-                Delete Selected
-              </button>
+              <button onClick={() => setShowBulkDeleteConfirm(false)}
+                className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">Cancel</button>
+              <button onClick={handleBulkDelete}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700">Delete Selected</button>
             </div>
           </div>
         </div>
       )}
 
-      {toast && (
-        <Toast
-          message={toast.message}
-          type={toast.type}
-          onClose={() => setToast(null)}
-        />
-      )}
+      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
     </div>
   );
 };

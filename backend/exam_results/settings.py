@@ -138,21 +138,26 @@ SIMPLE_JWT = {
     'AUTH_HEADER_TYPES': ('Bearer',),
 }
 
-CORS_ALLOWED_ORIGINS = [
+# CORS / CSRF: always include localhost defaults; additional origins come from env var
+# CORS_EXTRA_ORIGINS env var accepts comma-separated origins, e.g.:
+#   CORS_EXTRA_ORIGINS=http://192.168.1.10:2026,https://myserver.example.com:2026
+_CORS_DEFAULTS = [
     "http://localhost:3000",
     "http://localhost:2026",
     "http://127.0.0.1:3000",
     "http://127.0.0.1:2026",
-    "http://10.127.248.83:2026",
 ]
+_CORS_EXTRA = [o.strip() for o in os.environ.get("CORS_EXTRA_ORIGINS", "").split(",") if o.strip()]
+CORS_ALLOWED_ORIGINS = list(dict.fromkeys(_CORS_DEFAULTS + _CORS_EXTRA))
 
 CORS_ALLOW_CREDENTIALS = True
 CORS_EXPOSE_HEADERS = ["Content-Disposition"]
-CSRF_TRUSTED_ORIGINS = [
+
+_CSRF_EXTRA = [o.strip() for o in os.environ.get("CSRF_EXTRA_ORIGINS", "").split(",") if o.strip()]
+CSRF_TRUSTED_ORIGINS = list(dict.fromkeys([
     "http://localhost:2026",
     "http://127.0.0.1:2026",
-    "http://10.127.248.83:2026",
-]
+] + _CSRF_EXTRA))
 
 
 # Security Settings

@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def search_student(request):
-    if request.user.role != "admin":
+    if not (request.user.role == "admin" or request.user.can_search_students):
         return Response({"error": "Admin only"}, status=403)
     try:
         query = request.GET.get("q", "").strip()
@@ -38,7 +38,7 @@ def search_student(request):
 @permission_classes([IsAuthenticated])
 def get_student_history(request, roll_number):
     """Get complete history of results for a student. Each exam is shown separately."""
-    if request.user.role != 'admin':
+    if not (request.user.role == 'admin' or request.user.can_search_students):
         return Response({'error': 'Admin only'}, status=403)
     
     try:
@@ -65,6 +65,60 @@ def get_student_history(request, roll_number):
             key = (result.year, result.semester)
             exam_counts[key] = exam_counts.get(key, 0) + 1
         
+        # ----------------------------------------------------------------
+        # Build per-attempt entries AND compute consolidated_sgpa per
+        # year/semester group (latest grade per subject across all attempts)
+        # ----------------------------------------------------------------
+        PASS_GRADES = {'O', 'A', 'B', 'C', 'D'}
+        GRADE_POINTS = {'O': 10, 'A': 9, 'B': 8, 'C': 7, 'D': 6, 'F': 0}
+
+        # Step 1: collect all results keyed by (year, semester) in upload order
+        group_results = {}
+        for result in results:
+            key = (result.year, result.semester)
+            if key not in group_results:
+                group_results[key] = []
+            group_results[key].append(result)
+
+        # Step 2: for each group compute consolidated view
+        consolidated_info = {}  # key -> {consolidated_sgpa, consolidated_result, consolidated_pending, consolidated_pending_names, consolidated_earned_credits}
+        for key, group in group_results.items():
+            # Walk attempts in upload order; keep latest grade per subject_code
+            latest_grade = {}   # subject_code -> (grade, credits, subject_name)
+            for r in sorted(group, key=lambda x: x.uploaded_at):
+                for subj in r.subjects.all():
+                    code = subj.subject_code or subj.subject_name
+                    latest_grade[code] = (
+                        (subj.grade or '').strip().upper(),
+                        subj.credits or 0,
+                        subj.subject_name
+                    )
+            # Compute consolidated SGPA
+            total_credits_c = 0
+            weighted_sum_c = 0
+            pending_c = 0
+            pending_names_c = []
+            earned_credits_c = 0
+            for code, (grade, credits, name) in latest_grade.items():
+                if credits and grade in GRADE_POINTS:
+                    total_credits_c += credits
+                    weighted_sum_c += GRADE_POINTS[grade] * credits
+                if grade in PASS_GRADES:
+                    earned_credits_c += credits
+                if grade == 'F':
+                    pending_c += 1
+                    pending_names_c.append(name)
+            cons_sgpa = round(weighted_sum_c / total_credits_c, 2) if total_credits_c > 0 else None
+            cons_result = 'Pass' if pending_c == 0 and cons_sgpa is not None and cons_sgpa >= 6.0 else 'Fail'
+            consolidated_info[key] = {
+                'consolidated_sgpa': cons_sgpa,
+                'consolidated_result': cons_result,
+                'consolidated_pending': pending_c,
+                'consolidated_pending_names': pending_names_c,
+                'consolidated_earned_credits': earned_credits_c,
+            }
+
+        # Step 3: build per-attempt entries as before, injecting consolidated fields
         semester_summary = []
         for result in results:
             subjects = result.subjects.all()
@@ -73,9 +127,7 @@ def get_student_history(request, roll_number):
             pending_subject_names = []
             total_credits = 0
             earned_credits = 0
-            PASS_GRADES = {'O', 'A', 'B', 'C', 'D'}
 
-            # Count F grades as pending subjects
             for subject in subjects:
                 cr = subject.credits or 0
                 total_credits += cr
@@ -84,12 +136,13 @@ def get_student_history(request, roll_number):
                 if subject.grade and subject.grade.upper() == 'F':
                     pending_subjects += 1
                     pending_subject_names.append(subject.subject_name)
-            
+
             overall_result = result.overall_result if result.overall_result else ('Pass' if pending_subjects == 0 else 'Fail')
             key = (result.year, result.semester)
             num_attempts = exam_counts[key]
             completion_date_str = result.completion_date.strftime('%Y-%m-%d') if result.completion_date else None
-            
+            cons = consolidated_info[key]
+
             semester_summary.append({
                 'year': result.year,
                 'semester': result.semester,
@@ -107,7 +160,13 @@ def get_student_history(request, roll_number):
                 'pending_subject_names': pending_subject_names,
                 'num_attempts': num_attempts,
                 'completion_date': completion_date_str,
-                'uploaded_at': result.uploaded_at.strftime('%Y-%m-%d %H:%M:%S')
+                'uploaded_at': result.uploaded_at.strftime('%Y-%m-%d %H:%M:%S'),
+                # Consolidated fields (same value for all attempts in the same group)
+                'consolidated_sgpa': cons['consolidated_sgpa'],
+                'consolidated_result': cons['consolidated_result'],
+                'consolidated_pending': cons['consolidated_pending'],
+                'consolidated_pending_names': cons['consolidated_pending_names'],
+                'consolidated_earned_credits': cons['consolidated_earned_credits'],
             })
         
         return Response({'student_info': student_info, 'semester_summary': semester_summary})
@@ -121,7 +180,7 @@ def get_student_history(request, roll_number):
 @permission_classes([IsAuthenticated])
 def get_semester_subjects(request, result_id):
     """Get subjects for a SPECIFIC exam (result_id). Each exam is independent."""  
-    if request.user.role != "admin":
+    if not (request.user.role == "admin" or request.user.can_search_students or request.user.can_edit_results):
         return Response({"error": "Admin only"}, status=403)
     try:
         result = Result.objects.get(id=result_id)
@@ -161,7 +220,7 @@ def get_semester_subjects(request, result_id):
 @api_view(["PUT"])
 @permission_classes([IsAuthenticated])
 def update_subject_marks(request, subject_id):
-    if request.user.role != "admin":
+    if not (request.user.role == "admin" or request.user.can_edit_results):
         return Response({"error": "Admin only"}, status=403)
     try:
         subject = Subject.objects.select_related("result").get(id=subject_id)

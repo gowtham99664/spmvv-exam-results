@@ -23,14 +23,39 @@ class User(AbstractUser):
     branch = models.CharField(max_length=50, null=True, blank=True, help_text='Assigned branch (CSE, ECE, etc.) or NULL for all')
     department = models.CharField(max_length=100, null=True, blank=True, help_text='Department name')
     
-    # Granular Permissions (Admin assigns these)
-    can_view_statistics = models.BooleanField(default=False, help_text='Can view statistics and reports dashboard')
-    can_upload_results = models.BooleanField(default=False, help_text='Can upload exam results (Excel files)')
-    can_delete_results = models.BooleanField(default=False, help_text='Can delete exam results')
-    can_manage_users = models.BooleanField(default=False, help_text='Can create, edit, and delete users')
-    
-    # Branch Access Control
-    can_view_all_branches = models.BooleanField(default=False, help_text='Can view all branches (overrides branch restriction)')
+    # ── Granular Permission Flags (feature × action) ────────────────────────────
+    # Results
+    results_upload           = models.BooleanField(default=False, help_text='Upload exam result Excel files')
+    results_edit             = models.BooleanField(default=False, help_text='Edit individual subject marks')
+    results_delete           = models.BooleanField(default=False, help_text='Delete uploaded exam results')
+    results_download         = models.BooleanField(default=False, help_text='Download result Excel files')
+    # Students
+    students_view            = models.BooleanField(default=False, help_text='Search students and view academic history')
+    students_detained_report = models.BooleanField(default=False, help_text='View detained students report')
+    # Circulars
+    circulars_view           = models.BooleanField(default=False, help_text='View circulars')
+    circulars_create         = models.BooleanField(default=False, help_text='Create new circulars')
+    circulars_edit           = models.BooleanField(default=False, help_text='Edit existing circulars')
+    circulars_delete         = models.BooleanField(default=False, help_text='Delete circulars')
+    # Timetable
+    timetable_view           = models.BooleanField(default=False, help_text='View and download timetables')
+    timetable_create         = models.BooleanField(default=False, help_text='Generate and manage timetables')
+    # Hall Tickets
+    halltickets_view         = models.BooleanField(default=False, help_text='View hall ticket exams and enrollments')
+    halltickets_create       = models.BooleanField(default=False, help_text='Create/manage hall ticket exams and upload student lists')
+    halltickets_generate     = models.BooleanField(default=False, help_text='Generate hall tickets')
+    halltickets_download     = models.BooleanField(default=False, help_text='Download hall ticket PDFs')
+    # Statistics
+    statistics_view          = models.BooleanField(default=False, help_text='View statistics and reports dashboard')
+    # Audit Logs
+    auditlogs_view           = models.BooleanField(default=False, help_text='View security and activity audit logs')
+    # User Management
+    users_view               = models.BooleanField(default=False, help_text='View the user list')
+    users_create             = models.BooleanField(default=False, help_text='Create new users')
+    users_edit               = models.BooleanField(default=False, help_text='Edit users and assign permissions')
+    users_delete             = models.BooleanField(default=False, help_text='Delete users')
+    # Access Scope
+    access_all_branches      = models.BooleanField(default=False, help_text='View data for all branches (overrides branch restriction)')
     
     # Account Status
     is_active_user = models.BooleanField(default=True, help_text='User account is active')
@@ -192,12 +217,14 @@ class AuditLog(models.Model):
     details = models.TextField(blank=True)
     ip_address = models.GenericIPAddressField(null=True)
     timestamp = models.DateTimeField(auto_now_add=True)
+    session_id = models.CharField(max_length=64, null=True, blank=True, db_index=True, help_text='Login session identifier to group audit events per session')
     
     class Meta:
         db_table = 'audit_logs'
         indexes = [
             models.Index(fields=['user', 'timestamp']),
             models.Index(fields=['action', 'timestamp']),
+            models.Index(fields=['session_id']),
         ]
     
     def __str__(self):
@@ -269,6 +296,12 @@ class Circular(models.Model):
     is_active = models.BooleanField(default=True, help_text="Show to students")
     target_year = models.IntegerField(null=True, blank=True, help_text="Target specific year (1,2,3,4) or NULL for all")
     target_branch = models.CharField(max_length=50, null=True, blank=True, help_text="Target specific branch or NULL for all")
+    target_audience = models.CharField(
+        max_length=20,
+        choices=[("all", "All (Students + Staff)"), ("students", "Students Only"), ("staff", "Staff Only")],
+        default="all",
+        help_text="Who should receive this circular"
+    )
     
     # Metadata
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name="circulars")

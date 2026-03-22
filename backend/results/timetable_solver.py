@@ -207,6 +207,21 @@ def solve_timetable(config, subjects):
                 model.Add(sum(var_list) <= 1)
 
     # ------------------------------------------------------------------
+    # Constraint 3b: at most one lab block per section per day
+    # ------------------------------------------------------------------
+    # Group lab_vars by (section, day) and enforce sum <= 1
+    sec_day_lab_vars = defaultdict(list)
+    for i, subj in lab_subjects:
+        ll = eff_lab_len(subj)
+        blocks = lab_blocks_cache[ll]
+        for k, (day, block_periods) in enumerate(blocks):
+            sec_day_lab_vars[(subj["section"], day)].append(lab_vars[(i, k)])
+
+    for (sec, day), var_list in sec_day_lab_vars.items():
+        if len(var_list) > 1:
+            model.Add(sum(var_list) <= 1)
+
+    # ------------------------------------------------------------------
     # Constraint 4: no faculty clash across sections at same slot.
     # For split labs, BOTH faculty_1 and faculty_2 are fully blocked
     # for the entire block duration (both batches run simultaneously).

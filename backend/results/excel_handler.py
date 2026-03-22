@@ -7,7 +7,8 @@ logger = logging.getLogger('django')
 
 class ExcelValidator:
     REQUIRED_COLUMNS = [
-        'Branch', 'Roll Number', 'Student Name', 'Result Type'
+        'Branch', 'Roll Number', 'Student Name'
+        # 'Result Type' removed — passed as form field, not required in Excel
     ]
     
     ALLOWED_EXTENSIONS = ['.xlsx', '.xls']
@@ -203,6 +204,19 @@ class ExcelValidator:
                             else:
                                 subject[field_name] = value
                 
+                # Filter out blank subject slots: supplementary students only
+                # fill in the subjects they actually sat for; remaining
+                # subject columns in the header will be all-None for them.
+                # A subject slot is considered "used" if at least one of
+                # Code, Name, Credits or Grade has a non-empty value.
+                def _subject_has_data(s):
+                    return any([
+                        s.get('Code'),
+                        s.get('Name'),
+                        s.get('Credits') is not None,
+                        s.get('Grade'),
+                    ])
+                subjects = [s for s in subjects if _subject_has_data(s)]
                 row_data['subjects'] = subjects
                 row_data['row_number'] = row_idx
                 data.append(row_data)
@@ -233,12 +247,7 @@ class ExcelValidator:
                 errors.append(f"Row {row_num}: Branch is required")
             # Note: any branch string is accepted - not restricted to a predefined list
             
-            # Validate Result Type (NEW)
-            result_type = row.get('Result Type', '')
-            if not result_type:
-                errors.append(f"Row {row_num}: Result Type is required")
-            elif result_type not in valid_result_types:
-                errors.append(f"Row {row_num}: Invalid Result Type '{result_type}'. Must be Regular, Supplementary, or Both")
+            # Result Type is optional in Excel — comes from form field if not present
             
             # Validate required fields
             if not row.get('Roll Number'):

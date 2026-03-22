@@ -46,10 +46,6 @@ if errorlevel 1 (
 echo   - Docker Desktop is running
 echo.
 
-REM ---------------------------------------------------------------------------
-REM Resolve proxy hostname to IP so containers can reach it
-REM (containers cannot resolve proxy-wsa.esl.cisco.com via corporate DNS)
-
 REM Step 1: Cleanup
 echo [STEP 1/6] Cleaning up old containers...
 echo   - Stopping containers...
@@ -108,21 +104,20 @@ if not exist "Dockerfile" (
 
 REM Only build if image does not already exist (model bake takes ~5-10 min)
 docker image inspect %PROJECT_NAME%-ollama:latest >nul 2>&1
-if not errorlevel 1 goto :ollama_image_exists
-echo   - Building Ollama image...
-echo   - NOTE: This pulls qwen2.5:3b (~2 GB) and may take 5-10 minutes...
-docker build -t %PROJECT_NAME%-ollama .
 if errorlevel 1 (
-    echo ERROR: Ollama image build failed!
-    pause
-    exit /b 1
+    echo   - Building Ollama image...
+    echo   - NOTE: This pulls qwen2.5:3b (~2 GB) and may take 5-10 minutes...
+    docker build -t %PROJECT_NAME%-ollama .
+    if errorlevel 1 (
+        echo ERROR: Ollama image build failed!
+        pause
+        exit /b 1
+    )
+    echo   - Ollama image built
+) else (
+    echo   - Ollama image already exists. Skipping build.
+    echo   - To force rebuild: docker rmi %PROJECT_NAME%-ollama:latest and re-run.
 )
-echo   - Ollama image built
-goto :ollama_image_done
-:ollama_image_exists
-echo   - Ollama image already exists. Skipping build.
-echo   - To force rebuild: docker rmi %PROJECT_NAME%-ollama:latest and re-run.
-:ollama_image_done
 
 echo   - Starting Ollama container...
 docker run -d --name %PROJECT_NAME%_ollama ^
@@ -155,15 +150,15 @@ if not exist "Dockerfile" (
 
 echo   - Building backend image...
 docker build -t %PROJECT_NAME%-backend . 2>nul
-if not errorlevel 1 goto :backend_build_done
-echo   - Build failed, retrying with verbose output...
-docker build -t %PROJECT_NAME%-backend .
 if errorlevel 1 (
-    echo ERROR: Backend build failed!
-    pause
-    exit /b 1
+    echo   - Build failed, retrying with verbose output...
+    docker build -t %PROJECT_NAME%-backend .
+    if errorlevel 1 (
+        echo ERROR: Backend build failed!
+        pause
+        exit /b 1
+    )
 )
-:backend_build_done
 
 echo   - Starting backend container...
 docker run -d --name %PROJECT_NAME%_backend ^
@@ -179,8 +174,7 @@ docker run -d --name %PROJECT_NAME%_backend ^
   -e DB_PORT=3306 ^
   -e ADMIN_USERNAME=%ADMIN_USERNAME% ^
   -e ADMIN_DEFAULT_PASSWORD=%ADMIN_PASSWORD% ^
-  -e CORS_EXTRA_ORIGINS=http://localhost:2026,http://127.0.0.1:2026 ^
-  -e CSRF_EXTRA_ORIGINS=http://localhost:2026,http://127.0.0.1:2026 ^
+  -e CORS_ALLOWED_ORIGINS=http://localhost:2026,http://127.0.0.1:2026 ^
   -e OLLAMA_URL=http://%PROJECT_NAME%_ollama:11434 ^
   -p 8000:8000 ^
   %PROJECT_NAME%-backend:latest
@@ -212,29 +206,77 @@ echo   - Please be patient, npm install downloads many packages...
 
 set BUILD_START_TIME=%time%
 
-docker build -t %PROJECT_NAME%-frontend . 2>nul
-if not errorlevel 1 goto :frontend_build_done
-echo   - First attempt failed, retrying without cache...
-docker build --no-cache -t %PROJECT_NAME%-frontend .
+docker build --build-arg VITE_API_URL=http://localhost:8000/api -t %PROJECT_NAME%-frontend . 2>nul
 if errorlevel 1 (
-    echo ERROR: Frontend build failed!
-    echo.
-    echo Common issues:
-    echo   - Not enough memory allocated to Docker Desktop
-    echo   - Network issues downloading npm packages
-    echo   - Missing dependencies in package.json
-    echo.
-    echo Try:
-    echo   1. Increase Docker Desktop memory to 4GB or more
-    echo   2. Check your internet connection
-    echo   3. Run: docker system prune -a
-    pause
-    exit /b 1
+    echo   - First attempt failed, retrying without cache...
+    docker build --no-cache --build-arg VITE_API_URL=http://localhost:8000/api -t %PROJECT_NAME%-frontend .
+    if errorlevel 1 (
+        echo ERROR: Frontend build failed!
+        echo.
+        echo Common issues:
+        echo   - Not enough memory allocated to Docker Desktop
+        echo   - Network issues downloading npm packages
+        echo   - Missing dependencies in package.json
+        echo.
+        echo Try:
+        echo   1. Increase Docker Desktop memory to 4GB or more
+        echo   2. Check your internet connection
+        echo   3. Run: docker system prune -a
+        pause
+        exit /b 1
+    )
 )
-:frontend_build_done
 
 echo   - Starting frontend container...
 docker run -d --name %PROJECT_NAME%_frontend ^
   --network %PROJECT_NAME%_network ^
+  -e VITE_API_URL=http://localhost:8000/api ^
   -p 2026:2026 ^
-  %PROJECT_NAME%-fro
+  %PROJECT_NAME%-frontend:latest
+
+if errorlevel 1 (
+    echo ERROR: Failed to start frontend container
+    pause
+    exit /b 1
+)
+
+echo   - Waiting for startup (5 seconds)...
+timeout /t 5 /nobreak >nul
+echo   - Frontend ready
+echo.
+
+REM Deployment Summary
+echo ===============================================================================
+echo                         DEPLOYMENT COMPLETED
+echo ===============================================================================
+echo.
+echo Container Status:
+echo --------------------------------------------------------------------------------
+docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | findstr %PROJECT_NAME%
+echo.
+echo ===============================================================================
+echo.
+echo Access Information:
+echo   Frontend URL:  http://localhost:2026
+echo   Backend API:   http://localhost:8000/api
+echo   Admin Panel:   http://localhost:8000/admin
+echo   Ollama API:    http://localhost:11434
+echo.
+echo Login Credentials:
+echo   Username:      %ADMIN_USERNAME%
+echo   Password:      %ADMIN_PASSWORD%
+echo.
+echo ===============================================================================
+echo.
+echo Useful Commands:
+echo   Check status:  docker ps
+echo   View logs:     docker logs -f %PROJECT_NAME%_frontend
+echo   Stop all:      docker stop %PROJECT_NAME%_db %PROJECT_NAME%_ollama %PROJECT_NAME%_backend %PROJECT_NAME%_frontend
+echo   Restart:       docker restart %PROJECT_NAME%_backend
+echo.
+echo ===============================================================================
+echo Deployment completed at: %date% %time%
+echo ===============================================================================
+echo.
+
+pause

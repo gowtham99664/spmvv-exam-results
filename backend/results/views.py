@@ -6,8 +6,10 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import authenticate
 from django.db import transaction
 from django.utils import timezone
-from django.db.models import Count, Q, Avg, F
+from django.db.models import Count, Q, Avg, F, Min, Max
 from collections import defaultdict
+from datetime import timedelta
+import uuid
 from django.http import HttpResponse
 from .models import User, Result, Subject, Notification, AuditLog, Circular
 from .serializers import (
@@ -75,13 +77,30 @@ def get_client_ip(request):
     return ip
 
 
-def create_audit_log(user, action, details, request):
-    """Create audit log entry"""
+def get_session_id_from_request(request):
+    """Extract session_id claim from the JWT access token attached to the request."""
+    try:
+        from rest_framework_simplejwt.tokens import AccessToken
+        auth_header = request.META.get('HTTP_AUTHORIZATION', '')
+        if auth_header.startswith('Bearer '):
+            token_str = auth_header.split(' ', 1)[1]
+            token = AccessToken(token_str)
+            return token.get('session_id')
+    except Exception:
+        pass
+    return None
+
+
+def create_audit_log(user, action, details, request, session_id=None):
+    """Create audit log entry. session_id is auto-extracted from the JWT if not provided."""
+    if session_id is None:
+        session_id = get_session_id_from_request(request)
     AuditLog.objects.create(
         user=user,
         action=action,
         details=details,
-        ip_address=get_client_ip(request)
+        ip_address=get_client_ip(request),
+        session_id=session_id,
     )
 
 
@@ -141,14 +160,19 @@ def login_view(request):
         # Generate tokens
         refresh = RefreshToken.for_user(user)
         
+        # Generate a unique session_id for this login session
+        session_id = uuid.uuid4().hex
+        refresh['session_id'] = session_id
+        
         # Create audit log
-        create_audit_log(user, 'login', f"Successful login from {ip_address}", request)
+        create_audit_log(user, 'login', f"Successful login from {ip_address}", request, session_id=session_id)
         
         security_logger.info(f"Successful login: {username} from {ip_address}")
         
         return Response({
             'refresh': str(refresh),
             'access': str(refresh.access_token),
+            'session_id': session_id,
             'user': {
                 'username': user.username,
                 'roll_number': user.roll_number,
@@ -157,17 +181,53 @@ def login_view(request):
                 'last_name': user.last_name,
                 'branch': user.branch,
                 'department': user.department,
-                'can_view_all_branches': user.can_view_all_branches,
-                'can_manage_users': user.can_manage_users,
-                'can_view_statistics': user.can_view_statistics,
-                'can_upload_results': user.can_upload_results,
-                'can_delete_results': user.can_delete_results,
+                'results_upload':           user.results_upload,
+                'results_edit':             user.results_edit,
+                'results_delete':           user.results_delete,
+                'results_download':         user.results_download,
+                'students_view':            user.students_view,
+                'students_detained_report': user.students_detained_report,
+                'circulars_view':           user.circulars_view,
+                'circulars_create':         user.circulars_create,
+                'circulars_edit':           user.circulars_edit,
+                'circulars_delete':         user.circulars_delete,
+                'timetable_view':           user.timetable_view,
+                'timetable_create':         user.timetable_create,
+                'halltickets_view':         user.halltickets_view,
+                'halltickets_create':       user.halltickets_create,
+                'halltickets_generate':     user.halltickets_generate,
+                'halltickets_download':     user.halltickets_download,
+                'statistics_view':          user.statistics_view,
+                'auditlogs_view':           user.auditlogs_view,
+                'users_view':               user.users_view,
+                'users_create':             user.users_create,
+                'users_edit':               user.users_edit,
+                'users_delete':             user.users_delete,
+                'access_all_branches':      user.access_all_branches,
                 'permissions': {
-                    'can_view_statistics': user.can_view_statistics,
-                    'can_upload_results': user.can_upload_results,
-                    'can_delete_results': user.can_delete_results,
-                    'can_manage_users': user.can_manage_users,
-                    'can_view_all_branches': user.can_view_all_branches,
+                    'results_upload':           user.results_upload,
+                    'results_edit':             user.results_edit,
+                    'results_delete':           user.results_delete,
+                    'results_download':         user.results_download,
+                    'students_view':            user.students_view,
+                    'students_detained_report': user.students_detained_report,
+                    'circulars_view':           user.circulars_view,
+                    'circulars_create':         user.circulars_create,
+                    'circulars_edit':           user.circulars_edit,
+                    'circulars_delete':         user.circulars_delete,
+                    'timetable_view':           user.timetable_view,
+                    'timetable_create':         user.timetable_create,
+                    'halltickets_view':         user.halltickets_view,
+                    'halltickets_create':       user.halltickets_create,
+                    'halltickets_generate':     user.halltickets_generate,
+                    'halltickets_download':     user.halltickets_download,
+                    'statistics_view':          user.statistics_view,
+                    'auditlogs_view':           user.auditlogs_view,
+                    'users_view':               user.users_view,
+                    'users_create':             user.users_create,
+                    'users_edit':               user.users_edit,
+                    'users_delete':             user.users_delete,
+                    'access_all_branches':      user.access_all_branches,
                 }
             }
         })
@@ -260,7 +320,7 @@ def change_password(request):
 @permission_classes([IsAuthenticated])
 def upload_results(request):
     """Upload results via Excel (Admin only)"""
-    if request.user.role != 'admin':
+    if not (request.user.role == 'admin' or request.user.results_upload):
         security_logger.warning(f"Unauthorized result upload attempt by {request.user.username}")
         return Response({
             'error': 'Permission denied'
@@ -303,13 +363,13 @@ def upload_results(request):
             'error': 'Semester must be 1 or 2'
         }, status=status.HTTP_400_BAD_REQUEST)
     
-    # Normalize course
-    course_lower = course.lower()
+    # Normalize course â€” accept 'btech', 'b.tech', 'B.Tech', 'mtech', 'm.tech', 'M.Tech'
+    course_lower = course.lower().replace('.', '').replace(' ', '').replace('-', '')
     if course_lower not in ['btech', 'mtech']:
         return Response({
             'error': 'Course must be B.Tech or M.Tech'
         }, status=status.HTTP_400_BAD_REQUEST)
-    
+
     course_display = 'B.Tech' if course_lower == 'btech' else 'M.Tech'
     
 
@@ -377,7 +437,7 @@ def upload_results(request):
             for row in data:
                 roll_number = str(row['Roll Number']).strip()
                 student_branch = row.get("Branch", "cse")
-                student_result_type = row.get("Result Type", "regular")
+                student_result_type = row.get("Result Type") or result_type_lower
                 branches_found.add(student_branch)
                 # Year, semester, exam_name, result_type come from form data now
                 
@@ -805,7 +865,9 @@ def get_combined_notifications(request):
         circulars = circulars.filter(
             Q(target_branch__iexact=user.branch) | Q(target_branch__isnull=True)
         )
-    
+    # Students should NOT see staff-only circulars
+    circulars = circulars.exclude(target_audience='staff')
+
     circulars = circulars.order_by('-created_at')
     
     for circ in circulars:
@@ -862,8 +924,9 @@ def get_combined_notifications(request):
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def get_uploaded_exams(request):
-    """Get list of uploaded exams (grouped by exam_name) with isolated statistics - Admin only"""
-    if request.user.role != "admin":
+    """Get list of uploaded exams (grouped by exam_name) with isolated statistics"""
+    u = request.user
+    if not (u.role == 'admin' or u.results_upload or u.results_delete or u.results_download):
         return Response({"error": "Permission denied"}, status=status.HTTP_403_FORBIDDEN)
     
     from django.db.models import Count, Max, Min, F, Q
@@ -916,8 +979,8 @@ def get_uploaded_exams(request):
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def download_exam_results(request, exam_name):
-    """Download results as Excel file for a specific exam - Admin only"""
-    if request.user.role != "admin":
+    """Download results as Excel file for a specific exam"""
+    if not (request.user.role == 'admin' or request.user.results_download):
         return Response({"error": "Permission denied"}, status=status.HTTP_403_FORBIDDEN)
     
     from django.http import HttpResponse
@@ -946,7 +1009,7 @@ def download_exam_results(request, exam_name):
         headers.extend([
             f"Subject {i} Code", f"Subject {i} Name",
             f"Subject {i} Internal", f"Subject {i} External",
-            f"Subject {i} Total", f"Subject {i} Result", f"Subject {i} Grade"
+            f"Subject {i} Total", f"Subject {i} Grade"
         ])
     
     headers.extend(["Overall Result", "Overall Grade"])
@@ -1019,8 +1082,8 @@ def download_exam_results(request, exam_name):
 @api_view(['DELETE'])
 @permission_classes([IsAuthenticated])
 def delete_exam_results(request, exam_name):
-    """Delete all results for a specific exam - Admin only"""
-    if request.user.role != 'admin':
+    """Delete all results for a specific exam"""
+    if not (request.user.role == 'admin' or request.user.results_delete):
         return Response({'error': 'Permission denied'}, status=status.HTTP_403_FORBIDDEN)
     
     # Get all results for this exam
@@ -1061,7 +1124,7 @@ def delete_exam_results(request, exam_name):
 def get_statistics(request):
     """Get comprehensive statistics - permission-based filtering"""
     # Check if user has permission to view statistics
-    if not request.user.can_view_statistics:
+    if not (request.user.role == 'admin' or request.user.statistics_view):
         return Response({"error": "Permission denied. You do not have access to view statistics."}, status=403)
     
     try:
@@ -1080,7 +1143,7 @@ def get_statistics(request):
             base_query = base_query.filter(exam_name=exam_name_filter)
         
         # Apply user-specific branch restrictions
-        if user.branch and not user.can_view_all_branches:
+        if user.branch and not user.access_all_branches:
             # User is restricted to their branch only
             base_query = base_query.filter(branch__iexact=user.branch)
             # Override branch_filter to their assigned branch
@@ -1268,8 +1331,8 @@ def get_statistics(request):
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def download_sample_template(request):
-    if request.user.role != "admin":
-        return Response({"error": "Admin only"}, status=403)
+    if not (request.user.role == 'admin' or request.user.results_upload):
+        return Response({"error": "Permission denied"}, status=403)
     try:
         import openpyxl
         from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
@@ -1415,21 +1478,107 @@ def download_sample_template(request):
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def get_audit_logs(request):
-    if request.user.role != "admin":
-        return Response({"error": "Admin only"}, status=403)
+    """Return session-wise audit logs for the last 5 days."""
+    if not (request.user.role == 'admin' or request.user.auditlogs_view):
+        return Response({"error": "Permission denied"}, status=403)
     try:
-        logs = AuditLog.objects.select_related("user").order_by("-timestamp")[:50]
-        log_data = [{"action_time": log.timestamp, "user": log.user.username if log.user else "Unknown", "action": log.get_action_display(), "object": log.details} for log in logs]
-        return Response({"logs": log_data})
+        from django.utils.timezone import localtime
+        from datetime import datetime
+
+        cutoff = timezone.now() - timedelta(days=5)
+
+        filter_user = request.GET.get("user")
+        filter_action = request.GET.get("action")
+
+        logs_qs = (
+            AuditLog.objects
+            .select_related("user")
+            .filter(timestamp__gte=cutoff)
+            .order_by("timestamp")
+        )
+
+        if filter_user:
+            logs_qs = logs_qs.filter(user__username__icontains=filter_user)
+        if filter_action:
+            logs_qs = logs_qs.filter(action=filter_action)
+
+        sessions = {}
+
+        for log in logs_qs:
+            if log.session_id:
+                key = log.session_id
+            else:
+                date_str = localtime(log.timestamp).strftime("%Y-%m-%d")
+                user_label = log.user.username if log.user else "unknown"
+                key = "legacy_{}_{}".format(user_label, date_str)
+
+            if key not in sessions:
+                sessions[key] = {
+                    "session_id": key,
+                    "user": log.user.username if log.user else "Unknown",
+                    "user_role": log.user.role if log.user else "",
+                    "ip_address": log.ip_address,
+                    "login_time": None,
+                    "logout_time": None,
+                    "duration_seconds": None,
+                    "activity_count": 0,
+                    "activities": [],
+                }
+
+            entry = sessions[key]
+            entry["activity_count"] += 1
+
+            if log.action == "login":
+                entry["login_time"] = log.timestamp.isoformat()
+                entry["ip_address"] = log.ip_address
+
+            if log.action == "logout":
+                entry["logout_time"] = log.timestamp.isoformat()
+
+            entry["activities"].append({
+                "id": log.id,
+                "action": log.action,
+                "action_display": log.get_action_display(),
+                "details": log.details,
+                "ip_address": log.ip_address,
+                "timestamp": log.timestamp.isoformat(),
+            })
+
+        for s in sessions.values():
+            if s["login_time"] and s["logout_time"]:
+                login_dt = datetime.fromisoformat(s["login_time"])
+                logout_dt = datetime.fromisoformat(s["logout_time"])
+                delta = logout_dt - login_dt
+                s["duration_seconds"] = int(delta.total_seconds())
+
+            s["activities"].sort(key=lambda a: a["timestamp"])
+
+            if not s["login_time"] and s["activities"]:
+                s["login_time"] = s["activities"][0]["timestamp"]
+
+        sessions_list = sorted(
+            sessions.values(),
+            key=lambda s: s["login_time"] or "",
+            reverse=True,
+        )
+
+        return Response({
+            "total_sessions": len(sessions_list),
+            "days_covered": 5,
+            "sessions": sessions_list,
+        })
     except Exception as e:
+        import traceback
+        logger.error("get_audit_logs error: %s", traceback.format_exc())
         return Response({"error": str(e)}, status=500)
 
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def list_users(request):
-    """List all users (admin only)"""
-    if not request.user.can_manage_users:
+    """List all users (requires users_view permission)"""
+    u = request.user
+    if not (u.role == 'admin' or u.users_view):
         return Response({'error': 'Permission denied'}, status=403)
     
     try:
@@ -1443,11 +1592,29 @@ def list_users(request):
             'role': user.role,
             'branch': user.branch,
             'department': user.department,
-            'can_view_all_branches': user.can_view_all_branches,
-            'can_manage_users': user.can_manage_users,
-            'can_view_statistics': user.can_view_statistics,
-            'can_upload_results': user.can_upload_results,
-            'can_delete_results': user.can_delete_results,
+            'results_upload':           user.results_upload,
+            'results_edit':             user.results_edit,
+            'results_delete':           user.results_delete,
+            'results_download':         user.results_download,
+            'students_view':            user.students_view,
+            'students_detained_report': user.students_detained_report,
+            'circulars_view':           user.circulars_view,
+            'circulars_create':         user.circulars_create,
+            'circulars_edit':           user.circulars_edit,
+            'circulars_delete':         user.circulars_delete,
+            'timetable_view':           user.timetable_view,
+            'timetable_create':         user.timetable_create,
+            'halltickets_view':         user.halltickets_view,
+            'halltickets_create':       user.halltickets_create,
+            'halltickets_generate':     user.halltickets_generate,
+            'halltickets_download':     user.halltickets_download,
+            'statistics_view':          user.statistics_view,
+            'auditlogs_view':           user.auditlogs_view,
+            'users_view':               user.users_view,
+            'users_create':             user.users_create,
+            'users_edit':               user.users_edit,
+            'users_delete':             user.users_delete,
+            'access_all_branches':      user.access_all_branches,
             'is_active_user': user.is_active_user,
             'is_active': user.is_active,
             'date_joined': user.date_joined,
@@ -1462,8 +1629,9 @@ def list_users(request):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def create_user(request):
-    """Create new user (admin only)"""
-    if not request.user.can_manage_users:
+    """Create new user (requires users_create permission)"""
+    u = request.user
+    if not (u.role == 'admin' or u.users_create):
         return Response({'error': 'Permission denied'}, status=403)
     
     try:
@@ -1489,12 +1657,31 @@ def create_user(request):
             role=data['role'],
             branch=data.get('branch'),
             department=data.get('department'),
-            can_view_all_branches=data.get('can_view_all_branches', False),
-            can_manage_users=data.get('can_manage_users', False),
-            can_view_statistics=data.get('can_view_statistics', False),
-            can_upload_results=data.get('can_upload_results', False),
-            can_delete_results=data.get('can_delete_results', False),
+            results_upload=data.get('results_upload', False),
+            results_edit=data.get('results_edit', False),
+            results_delete=data.get('results_delete', False),
+            results_download=data.get('results_download', False),
+            students_view=data.get('students_view', False),
+            students_detained_report=data.get('students_detained_report', False),
+            circulars_view=data.get('circulars_view', False),
+            circulars_create=data.get('circulars_create', False),
+            circulars_edit=data.get('circulars_edit', False),
+            circulars_delete=data.get('circulars_delete', False),
+            timetable_view=data.get('timetable_view', False),
+            timetable_create=data.get('timetable_create', False),
+            halltickets_view=data.get('halltickets_view', False),
+            halltickets_create=data.get('halltickets_create', False),
+            halltickets_generate=data.get('halltickets_generate', False),
+            halltickets_download=data.get('halltickets_download', False),
+            statistics_view=data.get('statistics_view', False),
+            auditlogs_view=data.get('auditlogs_view', False),
+            users_view=data.get('users_view', False),
+            users_create=data.get('users_create', False),
+            users_edit=data.get('users_edit', False),
+            users_delete=data.get('users_delete', False),
+            access_all_branches=data.get('access_all_branches', False),
             is_active_user=data.get('is_active_user', True),
+            roll_number=data.get('roll_number'),
         )
         
         return Response({
@@ -1513,8 +1700,9 @@ def create_user(request):
 @api_view(['PUT'])
 @permission_classes([IsAuthenticated])
 def update_user(request, user_id):
-    """Update user details (admin only)"""
-    if not request.user.can_manage_users:
+    """Update user details (requires users_edit permission)"""
+    u = request.user
+    if not (u.role == 'admin' or u.users_edit):
         return Response({'error': 'Permission denied'}, status=403)
     
     try:
@@ -1534,16 +1722,19 @@ def update_user(request, user_id):
             user.branch = data['branch']
         if 'department' in data:
             user.department = data['department']
-        if 'can_view_all_branches' in data:
-            user.can_view_all_branches = data['can_view_all_branches']
-        if 'can_manage_users' in data:
-            user.can_manage_users = data['can_manage_users']
-        if 'can_view_statistics' in data:
-            user.can_view_statistics = data['can_view_statistics']
-        if 'can_upload_results' in data:
-            user.can_upload_results = data['can_upload_results']
-        if 'can_delete_results' in data:
-            user.can_delete_results = data['can_delete_results']
+        perm_fields = [
+            'results_upload', 'results_edit', 'results_delete', 'results_download',
+            'students_view', 'students_detained_report',
+            'circulars_view', 'circulars_create', 'circulars_edit', 'circulars_delete',
+            'timetable_view', 'timetable_create',
+            'halltickets_view', 'halltickets_create', 'halltickets_generate', 'halltickets_download',
+            'statistics_view', 'auditlogs_view',
+            'users_view', 'users_create', 'users_edit', 'users_delete',
+            'access_all_branches',
+        ]
+        for field in perm_fields:
+            if field in data:
+                setattr(user, field, bool(data[field]))
         if 'is_active_user' in data:
             user.is_active_user = data['is_active_user']
         if 'is_active' in data:
@@ -1569,8 +1760,9 @@ def update_user(request, user_id):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def reset_user_password(request, user_id):
-    """Reset user password (admin only)"""
-    if not request.user.can_manage_users:
+    """Reset user password (requires users_edit permission)"""
+    u = request.user
+    if not (u.role == 'admin' or u.users_edit):
         return Response({'error': 'Permission denied'}, status=403)
     
     try:
@@ -1595,8 +1787,9 @@ def reset_user_password(request, user_id):
 @api_view(['DELETE'])
 @permission_classes([IsAuthenticated])
 def delete_user(request, user_id):
-    """Delete user (admin only)"""
-    if not request.user.can_manage_users:
+    """Delete user (requires users_delete permission)"""
+    u = request.user
+    if not (u.role == 'admin' or u.users_delete):
         return Response({'error': 'Permission denied'}, status=403)
     
     try:
@@ -1625,19 +1818,44 @@ def delete_user(request, user_id):
 def get_user_permissions(request):
     """Get current user permissions and role"""
     user = request.user
+    is_admin = user.role == 'admin'
+    def p(field):
+        return True if is_admin else bool(getattr(user, field, False))
     return Response({
         'username': user.username,
         'role': user.role,
         'branch': user.branch,
         'department': user.department,
-        'can_view_all_branches': user.can_view_all_branches,
-        'can_manage_users': user.can_manage_users,
+        'access_all_branches': p('access_all_branches'),
+        'users_view': p('users_view'),
+        'users_create': p('users_create'),
+        'users_edit': p('users_edit'),
+        'users_delete': p('users_delete'),
         'is_active_user': user.is_active_user,
         'permissions': {
-            'can_upload_results': user.role in ['admin'],
-            'can_view_statistics': user.role in ['admin', 'principal', 'hod'],
-            'can_delete_results': user.role in ['admin'],
-            'can_manage_users': user.can_manage_users,
+            'results_upload':           p('results_upload'),
+            'results_edit':             p('results_edit'),
+            'results_delete':           p('results_delete'),
+            'results_download':         p('results_download'),
+            'students_view':            p('students_view'),
+            'students_detained_report': p('students_detained_report'),
+            'circulars_view':           p('circulars_view'),
+            'circulars_create':         p('circulars_create'),
+            'circulars_edit':           p('circulars_edit'),
+            'circulars_delete':         p('circulars_delete'),
+            'timetable_view':           p('timetable_view'),
+            'timetable_create':         p('timetable_create'),
+            'halltickets_view':         p('halltickets_view'),
+            'halltickets_create':       p('halltickets_create'),
+            'halltickets_generate':     p('halltickets_generate'),
+            'halltickets_download':     p('halltickets_download'),
+            'statistics_view':          p('statistics_view'),
+            'auditlogs_view':           p('auditlogs_view'),
+            'users_view':               p('users_view'),
+            'users_create':             p('users_create'),
+            'users_edit':               p('users_edit'),
+            'users_delete':             p('users_delete'),
+            'access_all_branches':      p('access_all_branches'),
         }
     })
 
@@ -1669,6 +1887,8 @@ def manage_circulars(request):
                 circulars = circulars.filter(
                     Q(target_branch__iexact=request.user.branch) | Q(target_branch__isnull=True)
                 )
+            # Students should NOT see staff-only circulars
+            circulars = circulars.exclude(target_audience='staff')
         
         circulars = circulars.order_by("-created_at")
         serializer = CircularSerializer(circulars, many=True, context={"request": request})
@@ -1680,9 +1900,9 @@ def manage_circulars(request):
     
     elif request.method == "POST":
         # Only admin can create
-        if request.user.role != "admin":
+        if not (request.user.role == "admin" or request.user.circulars_create):
             return Response({
-                "error": "Only admins can create circulars"
+                "error": "Permission denied"
             }, status=status.HTTP_403_FORBIDDEN)
         
         # Normalize target_branch to uppercase
@@ -1737,9 +1957,9 @@ def circular_detail(request, circular_id):
     
     elif request.method == "PUT":
         # Only admin can update
-        if request.user.role != "admin":
+        if not (request.user.role == "admin" or request.user.circulars_edit):
             return Response({
-                "error": "Only admins can update circulars"
+                "error": "Permission denied"
             }, status=status.HTTP_403_FORBIDDEN)
         
         # Normalize target_branch to uppercase
@@ -1772,9 +1992,9 @@ def circular_detail(request, circular_id):
     
     elif request.method == "DELETE":
         # Only admin can delete
-        if request.user.role != "admin":
+        if not (request.user.role == "admin" or request.user.circulars_delete):
             return Response({
-                "error": "Only admins can delete circulars"
+                "error": "Permission denied"
             }, status=status.HTTP_403_FORBIDDEN)
         
         title = circular.title
@@ -1887,8 +2107,9 @@ def student_profile(request):
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def get_exam_month_years(request):
-    """Return sorted distinct exam month-years. Admin only."""
-    if request.user.role != "admin":
+    """Return sorted distinct exam month-years."""
+    u = request.user
+    if not (u.role == 'admin' or u.statistics_view or u.students_detained_report or u.students_view):
         return Response(
             {"error": "Permission denied"}, status=status.HTTP_403_FORBIDDEN
         )
@@ -1929,7 +2150,7 @@ def get_detained_students(request):
         course          - btech or mtech, optional
         exam_month_year - e.g. November 2025, optional
     """
-    if request.user.role != "admin":
+    if not (request.user.role == "admin" or request.user.students_detained_report):
         return Response(
             {"error": "Permission denied"}, status=status.HTTP_403_FORBIDDEN
         )

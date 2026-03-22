@@ -28,6 +28,15 @@ MYSQL_ROOT_PASSWORD="RootPassword@2026"
 # Admin credentials (FIXED)
 ADMIN_USERNAME="admin"
 ADMIN_PASSWORD="SpmvvExamResults"
+# Proxy settings - use resolved IP to avoid DNS issues inside Docker build containers
+# apt/npm/pip inside containers cannot resolve proxy-wsa.esl.cisco.com; use IP instead
+_PROXY_HOST=$(python3 -c "import socket; print(socket.gethostbyname('proxy-wsa.esl.cisco.com'))" 2>/dev/null || echo "")
+if [ -n "$_PROXY_HOST" ]; then
+  APT_PROXY="http://$_PROXY_HOST:80"
+else
+  APT_PROXY="${HTTP_PROXY:-}"
+fi
+PROXY_ARGS="--build-arg APT_PROXY=$APT_PROXY"
 
 echo -e "${BLUE}╔════════════════════════════════════════════════════════════╗${NC}"
 echo -e "${BLUE}║  SPMVV Exam Results - Docker Deployment & Redeploy Script ║${NC}"
@@ -211,7 +220,7 @@ if docker image inspect spmvv-ollama:latest &>/dev/null; then
     echo -e "${CYAN}  To force a rebuild: docker rmi spmvv-ollama:latest && ./deploy_docker.sh${NC}"
 else
     echo -e "${CYAN}Building Ollama image — this pulls qwen2.5:3b (~2 GB) and may take 5-10 minutes...${NC}"
-    if ! docker build -t spmvv-ollama . ; then
+    if ! docker build $PROXY_ARGS -t spmvv-ollama . ; then
         echo -e "${RED}✗ Ollama image build failed${NC}"
         exit 1
     fi
@@ -236,7 +245,7 @@ echo -e "${BLUE}[9/11] Building and deploying backend...${NC}"
 cd "$PROJECT_DIR/backend"
 
 echo -e "${CYAN}Building backend image (this may take 5-10 minutes)...${NC}"
-if ! docker build --force-rm -t spmvv-backend . ; then
+if ! docker build --force-rm $PROXY_ARGS -t spmvv-backend . ; then
     echo -e "✗ Backend build failed"
     exit 1
 fi
@@ -247,6 +256,7 @@ docker run -d \
   --name spmvv_backend \
   --network spmvv_network \
   -p 8000:8000 \
+  -v spmvv_media_data:/app/media \
   -e SECRET_KEY="django-insecure-docker-$(date +%s)" \
   -e DEBUG=True \
   -e ALLOWED_HOSTS="localhost,127.0.0.1,$SERVER_IP" \
@@ -258,7 +268,8 @@ docker run -d \
   -e DB_PORT=3306 \
   -e ADMIN_USERNAME="$ADMIN_USERNAME" \
   -e ADMIN_DEFAULT_PASSWORD="$ADMIN_PASSWORD" \
-  -e CORS_ALLOWED_ORIGINS="http://localhost:2026,http://$SERVER_IP:2026" \
+  -e CORS_EXTRA_ORIGINS="http://$SERVER_IP:2026" \
+  -e CSRF_EXTRA_ORIGINS="http://$SERVER_IP:2026" \
   -e OLLAMA_URL="http://spmvv_ollama:11434" \
   spmvv-backend:latest
 
@@ -274,6 +285,9 @@ fi
 echo ""
 
 # Build and deploy Frontend
+# NOTE: npm registry is unreachable from inside Docker build containers on this
+# host, so we build Vite on the host directly and package only the static output
+# into a minimal nginx Docker image.
 echo -e "${BLUE}[10/11] Building and deploying frontend...${NC}"
 cd "$PROJECT_DIR/frontend"
 
@@ -281,14 +295,43 @@ cd "$PROJECT_DIR/frontend"
 pkill -f "docker build.*frontend" 2>/dev/null || true
 sleep 2
 
-echo -e "${CYAN}Building frontend image (this may take 2-3 minutes)...${NC}"
-if ! docker build \
-  --build-arg VITE_API_URL="http://$SERVER_IP:8000/api" \
-  -t spmvv-frontend . ; then
-    echo -e "${RED}✗ Frontend build failed${NC}"
-    exit 1
+echo -e "${CYAN}Installing frontend dependencies on host (npm install)...${NC}"
+# Only run npm install if node_modules is missing or package.json is newer
+if [ ! -d node_modules ] || [ package.json -nt node_modules ]; then
+    if ! npm install; then
+        echo -e "${RED}✗ npm install failed${NC}"
+        exit 1
+    fi
+    echo -e "${GREEN}✓ npm install complete${NC}"
+else
+    echo -e "${YELLOW}⚠ node_modules up to date, skipping npm install${NC}"
 fi
 
+echo -e "${CYAN}Building Vite app on host...${NC}"
+echo "VITE_API_URL=/api" > .env
+if ! npm run build; then
+    echo -e "${RED}✗ Vite build failed${NC}"
+    exit 1
+fi
+echo -e "${GREEN}✓ Vite build complete${NC}"
+
+echo -e "${CYAN}Packaging pre-built frontend into Docker image...${NC}"
+# Create a temporary Dockerfile that just wraps the pre-built output
+cat > Dockerfile.prebuilt << 'DOCKEREOF'
+FROM nginx:alpine
+COPY build /usr/share/nginx/html
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+RUN rm -f /etc/nginx/conf.d/default.conf.default
+EXPOSE 2026
+CMD ["nginx", "-g", "daemon off;"]
+DOCKEREOF
+
+if ! docker build -f Dockerfile.prebuilt -t spmvv-frontend .; then
+    echo -e "${RED}✗ Frontend Docker image build failed${NC}"
+    rm -f Dockerfile.prebuilt
+    exit 1
+fi
+rm -f Dockerfile.prebuilt
 echo -e "${GREEN}✓ Frontend image built${NC}"
 
 echo -e "${CYAN}Starting frontend container...${NC}"
@@ -296,7 +339,6 @@ docker run -d \
   --name spmvv_frontend \
   --network spmvv_network \
   -p 2026:2026 \
-  -e VITE_API_URL="http://$SERVER_IP:8000/api" \
   spmvv-frontend:latest
 
 echo -e "${CYAN}Waiting for frontend to start (10 seconds)...${NC}"
