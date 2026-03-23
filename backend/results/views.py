@@ -133,6 +133,7 @@ def login_view(request):
     """Login for both admin and students"""
     username = request.data.get('username')
     password = request.data.get('password')
+    login_type = request.data.get('login_type', '')  # 'student' or 'admin'
     ip_address = get_client_ip(request)
     
     if not username or not password:
@@ -151,6 +152,18 @@ def login_view(request):
     user = authenticate(username=username, password=password)
     
     if user is not None:
+        # Enforce login type restrictions
+        if login_type == 'student' and user.role != 'student':
+            security_logger.warning(f"Non-student attempted student login: {username} (role={user.role}) from {ip_address}")
+            return Response({
+                'error': 'This login is for students only. Please use the Admin login.'
+            }, status=status.HTTP_403_FORBIDDEN)
+        if login_type == 'admin' and user.role == 'student':
+            security_logger.warning(f"Student attempted admin login: {username} from {ip_address}")
+            return Response({
+                'error': 'Students must use the Student login.'
+            }, status=status.HTTP_403_FORBIDDEN)
+
         # Clear failed attempts
         LoginAttemptMiddleware.clear_login_attempts(username)
         

@@ -7,6 +7,7 @@ export const authService = {
     const response = await api.post('/login/', {
       username: hallTicketNumber,
       password: password,
+      login_type: 'student',
     });
     
     const { access, refresh, user } = response.data;
@@ -22,6 +23,7 @@ export const authService = {
     const response = await api.post('/login/', {
       username: username,
       password: password,
+      login_type: 'admin',
     });
     
     const { access, refresh, user } = response.data;

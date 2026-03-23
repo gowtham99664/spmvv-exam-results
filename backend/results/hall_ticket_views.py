@@ -722,33 +722,51 @@ def download_all_hall_tickets(request, exam_id):
 @permission_classes([IsAuthenticated])
 def generate_supplementary_hall_tickets(request):
     """
-    GET : Return distinct year+semester combos that have supplementary/fail results.
-    POST: Generate hall tickets for all supplementary students in the given year+semester.
+    GET : Return distinct year+semester combos that have students with failing subjects
+          (across ALL result types, not just supplementary).
+    POST: Generate hall tickets for all students who have any failing subject in the
+          given year+semester (across ALL result types — regular or supplementary).
           Body: { year (int 1-4), semester (int 1-2), course (str, optional),
                   branch (str, optional), exam_center, exam_start_time, exam_end_time }
+
+    BUG FIX 1: Was filtering result_type__in=['supplementary','both'] — now queries ALL
+               results and identifies students with failing subjects via Subject model.
+    BUG FIX 2: Now creates ExamSubject rows for each unique failing subject so the PDF
+               subjects section is not blank.
     """
     if not (request.user.role == "admin" or (request.user.halltickets_create or request.user.halltickets_generate or request.user.halltickets_download)):
         return Response({'error': 'Only admin users can generate supplementary hall tickets'},
                         status=status.HTTP_403_FORBIDDEN)
 
-    from .models import Result, Subject as SubjectModel
+    from .models import Result, Subject as SubjectModel, ExamSubject
+
+    # Helper: detect a failing subject row.
+    # Matches student_management.py: grade.upper() == 'F' is the only fail indicator.
+    def _is_fail(subj):
+        return (subj.grade or '').strip().upper() == 'F'
 
     if request.method == 'GET':
-        # Return distinct year/semester combos that have supplementary failures
+        # Return distinct year/semester combos that have ANY student with failing subjects
+        # across ALL result types (not just supplementary).
+        from django.db.models import Count as _Count
+        fail_result_ids = SubjectModel.objects.filter(
+            grade__iexact='F'
+        ).values_list('result_id', flat=True).distinct()
+
         combos = (
             Result.objects
-            .filter(result_type__in=['supplementary', 'both'])
-            .values('year', 'semester', 'course')
-            .distinct()
-            .order_by('year', 'semester')
+            .filter(id__in=fail_result_ids)
+            .values("year", "semester", "course", "branch")
+            .annotate(student_count=_Count('roll_number', distinct=True))
+            .order_by("year", "semester", "branch")
         )
         return Response({'combinations': list(combos)}, status=status.HTTP_200_OK)
 
     # --- POST ---
     year_param = request.data.get('year')
     semester_param = request.data.get('semester')
-    course_filter = request.data.get('course', '')        # optional filter
-    branch_filter = request.data.get('branch', '')        # optional filter
+    course_filter = request.data.get('course', '').strip()
+    branch_filter = request.data.get('branch', '').strip()
     exam_center = request.data.get('exam_center', 'SPMVV, Tirupati')
     exam_start_time = request.data.get('exam_start_time', '09:00')
     exam_end_time = request.data.get('exam_end_time', '12:00')
@@ -767,55 +785,80 @@ def generate_supplementary_hall_tickets(request):
     if sem_num not in [1, 2]:
         return Response({'error': 'semester must be 1 or 2'}, status=status.HTTP_400_BAD_REQUEST)
 
-    # Year roman-numeral label used in the Exam model
     year_labels = {1: 'I', 2: 'II', 3: 'III', 4: 'IV'}
-    sem_labels = {1: 'I', 2: 'II'}
+    sem_labels  = {1: 'I', 2: 'II'}
     year_label = year_labels[year_num]
-    sem_label = sem_labels[sem_num]
+    sem_label  = sem_labels[sem_num]
 
-    # Find supplementary students: result_type is supplementary/both
-    supple_qs = Result.objects.filter(
-        result_type__in=['supplementary', 'both'],
+    # ── BUG FIX 1: query ALL results (not just supplementary) ──────────────────
+    # Find all results for the given year+semester, then filter to students that
+    # have at least one failing Subject row (grade == 'F').
+    all_results_qs = Result.objects.filter(
         year=year_num,
         semester=sem_num,
-    ).select_related('student')
+    ).prefetch_related('subjects')
 
     if course_filter:
-        supple_qs = supple_qs.filter(course__iexact=course_filter)
+        all_results_qs = all_results_qs.filter(course__iexact=course_filter)
     if branch_filter:
-        supple_qs = supple_qs.filter(branch__iexact=branch_filter)
+        all_results_qs = all_results_qs.filter(branch__iexact=branch_filter)
 
-    if not supple_qs.exists():
+    # Build per-student data:
+    #   student_results:       roll -> best Result obj (prefer supplementary/both)
+    #   student_fail_subjects: roll -> {subject_code: Subject instance}
+    # A student may appear in multiple Result rows (regular + supplementary uploads).
+    # We collect ALL unique failing subjects across every result row.
+    from collections import defaultdict
+
+    student_results = {}
+    student_fail_subjects = defaultdict(dict)
+
+    for result in all_results_qs:
+        roll = result.roll_number
+        # Prefer supplementary/both result for metadata (student name, branch, etc.)
+        if roll not in student_results:
+            student_results[roll] = result
+        elif result.result_type in ('supplementary', 'both'):
+            student_results[roll] = result
+
+        for subj in result.subjects.all():
+            if _is_fail(subj):
+                code = (subj.subject_code or subj.subject_name or '').strip()
+                if code and code not in student_fail_subjects[roll]:
+                    student_fail_subjects[roll][code] = subj
+
+    # Keep only students who actually have failing subjects
+    supple_rolls = {roll for roll, subjs in student_fail_subjects.items() if subjs}
+
+    if not supple_rolls:
         return Response(
-            {'error': 'No supplementary results found for Year %d Semester %d' % (year_num, sem_num)},
+            {'error': 'No students with failing subjects found for Year %d Semester %d' % (year_num, sem_num)},
             status=status.HTTP_404_NOT_FOUND
         )
 
-    # Group by (course, branch) to create one Exam per group
-    from collections import defaultdict
+    # Group by (course, branch)
     groups = defaultdict(list)
-    for result in supple_qs:
+    for roll in supple_rolls:
+        result = student_results[roll]
         key = (result.course or 'btech', result.branch or '')
-        groups[key].append(result)
+        groups[key].append(roll)
 
     created_exams = []
     total_generated = 0
     total_skipped = 0
 
     with transaction.atomic():
-        for (course_key, branch_key), results in groups.items():
-            # Map internal course codes to display names
+        for (course_key, branch_key), rolls in groups.items():
             course_display_map = {'btech': 'B.Tech', 'mtech': 'M.Tech'}
             course_display = course_display_map.get(course_key.lower(), course_key.upper())
-
             branch_display = branch_key.upper() if branch_key else ''
+
             exam_name_parts = [year_label, 'Year', course_display, sem_label, 'Semester',
                                'Supplementary Examinations']
             if branch_display:
                 exam_name_parts.insert(2, branch_display)
             exam_name = ' '.join(exam_name_parts)
 
-            # Get or create the Exam record
             exam, exam_created = Exam.objects.get_or_create(
                 exam_name=exam_name,
                 defaults={
@@ -831,17 +874,37 @@ def generate_supplementary_hall_tickets(request):
                 }
             )
 
+            # ── BUG FIX 2: create ExamSubject rows so the PDF subjects are not blank ──
+            # Collect all unique failing subjects across all students in this group.
+            # ExamSubject fields: exam, subject_code, subject_name, subject_type, order.
+            all_fail_subjects = {}  # subject_code -> Subject instance
+            for roll in rolls:
+                for code, subj in student_fail_subjects[roll].items():
+                    if code not in all_fail_subjects:
+                        all_fail_subjects[code] = subj
+
+            for order_idx, (code, subj) in enumerate(sorted(all_fail_subjects.items()), start=1):
+                ExamSubject.objects.get_or_create(
+                    exam=exam,
+                    subject_code=code,
+                    defaults={
+                        'subject_name': subj.subject_name or code,
+                        'subject_type': 'Theory',
+                        'order': order_idx,
+                    }
+                )
+            # ─────────────────────────────────────────────────────────────────────────
+
             generated_count = 0
             skipped_count = 0
 
-            for result in results:
-                roll_number = result.roll_number
+            for roll in rolls:
+                result = student_results[roll]
                 student_name = result.student_name
 
-                # Create or skip enrollment
                 enrollment, enroll_created = ExamEnrollment.objects.get_or_create(
                     exam=exam,
-                    roll_number=roll_number,
+                    roll_number=roll,
                     defaults={
                         'student': result.student,
                         'student_name': student_name,
@@ -849,13 +912,12 @@ def generate_supplementary_hall_tickets(request):
                     }
                 )
 
-                # Generate hall ticket
                 if HallTicket.objects.filter(enrollment=enrollment).exists():
                     skipped_count += 1
                     continue
 
-                ht_number = '%d-%s' % (exam.id, roll_number)
-                qr_data = 'SPMVV:HT:%s:%s:%s' % (ht_number, roll_number, exam.exam_name)
+                ht_number = '%d-%s' % (exam.id, roll)
+                qr_data = 'SPMVV:HT:%s:%s:%s' % (ht_number, roll, exam.exam_name)
 
                 HallTicket.objects.create(
                     hall_ticket_number=ht_number,
@@ -891,8 +953,10 @@ def generate_supplementary_hall_tickets(request):
         'message': 'Supplementary hall tickets generated successfully',
         'year': year_num,
         'semester': sem_num,
-        'total_generated': total_generated,
+        'total_generated': total_generated,       # kept for e2e test compatibility
+        'total_hall_tickets': total_generated,     # used by frontend display
         'total_skipped': total_skipped,
+        'exams_created': len([e for e in created_exams if e['exam_created']]),
         'exams': created_exams,
     }, status=status.HTTP_201_CREATED)
 

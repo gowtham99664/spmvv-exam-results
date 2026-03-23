@@ -561,7 +561,7 @@ const HallTicketManagement = () => {
                 <strong>Found supplementary data for:</strong>{' '}
                 {suppleCombos.map((c, i) => (
                   <span key={i} className="inline-block mr-2">
-                    Year {c.year} Sem {c.semester} – {c.student_count} student(s)
+                    Year {c.year} Sem {c.semester} {c.branch ? c.branch.toUpperCase() : ""} – {c.student_count} student(s)
                   </span>
                 ))}
               </div>

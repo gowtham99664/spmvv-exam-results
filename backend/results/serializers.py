@@ -4,6 +4,7 @@ from .models import Result, Subject, User, Notification, AuditLog, Circular, Exa
 from .models import User, Result, Subject, Notification, AuditLog
 
 class UserRegistrationSerializer(serializers.ModelSerializer):
+    roll_number = serializers.CharField(required=True)
     password = serializers.CharField(write_only=True, required=True, validators=[validate_password])
     password_confirm = serializers.CharField(write_only=True, required=True)
     
@@ -12,12 +13,17 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         fields = ['roll_number', 'password', 'password_confirm', 'first_name', 'last_name', 'email', 'branch']
     
     def validate(self, attrs):
-        if attrs['password'] != attrs['password_confirm']:
+        password = attrs.get('password')
+        password_confirm = attrs.get('password_confirm')
+        if password and password_confirm and password != password_confirm:
             raise serializers.ValidationError({"password": "Password fields didn't match."})
 
         roll_number = attrs.get('roll_number')
-        if roll_number and User.objects.filter(roll_number=roll_number).exists():
-            raise serializers.ValidationError({"roll_number": "Roll number already exists."})
+        if roll_number and (
+            User.objects.filter(roll_number=roll_number).exists() or
+            User.objects.filter(username=roll_number).exists()
+        ):
+            raise serializers.ValidationError({"roll_number": "An account with this roll number already exists."})
 
         return attrs
     

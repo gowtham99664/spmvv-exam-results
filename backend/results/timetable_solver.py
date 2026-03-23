@@ -222,6 +222,29 @@ def solve_timetable(config, subjects):
             model.Add(sum(var_list) <= 1)
 
     # ------------------------------------------------------------------
+    # Constraint 3c: no two lab subjects with the same name (physical lab room)
+    # can run at the same (day, period) across different sections/branches/years.
+    # Two labs share the same physical room when their subject_name matches
+    # (case-insensitive). This prevents e.g. "Machine Lab" being scheduled
+    # Monday period 1 for CSE-A and also Monday period 1 for ECE-B.
+    # ------------------------------------------------------------------
+    lab_room_slot_vars = defaultdict(lambda: defaultdict(list))
+    for i, subj in lab_subjects:
+        room_key = (subj.get("subject_name") or subj.get("subject_code") or "").strip().lower()
+        if not room_key:
+            continue
+        ll = eff_lab_len(subj)
+        blocks = lab_blocks_cache[ll]
+        for k, (day, block_periods) in enumerate(blocks):
+            for p in block_periods:
+                lab_room_slot_vars[room_key][(day, p)].append(lab_vars[(i, k)])
+
+    for room_key, slot_map in lab_room_slot_vars.items():
+        for slot, var_list in slot_map.items():
+            if len(var_list) > 1:
+                model.Add(sum(var_list) <= 1)
+
+    # ------------------------------------------------------------------
     # Constraint 4: no faculty clash across sections at same slot.
     # For split labs, BOTH faculty_1 and faculty_2 are fully blocked
     # for the entire block duration (both batches run simultaneously).
