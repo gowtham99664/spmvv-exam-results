@@ -51,6 +51,16 @@ const DashboardCard = ({
       hover: 'hover:border-green-200 hover:shadow-green-100',
       badge: 'bg-green-100 text-green-700'
     },
+    orange: {
+      icon: 'from-orange-500 to-orange-600',
+      hover: 'hover:border-orange-200 hover:shadow-orange-100',
+      badge: 'bg-orange-100 text-orange-700'
+    },
+    red: {
+      icon: 'from-red-500 to-red-600',
+      hover: 'hover:border-red-200 hover:shadow-red-100',
+      badge: 'bg-red-100 text-red-700'
+    },
   };
 
   const colors = colorClasses[color] || colorClasses.blue;

@@ -3,6 +3,7 @@ from . import views
 from . import student_management
 from . import hall_ticket_views
 from . import timetable_views
+from . import subject_difficulty_views
 
 urlpatterns = [
     # Authentication endpoints
@@ -53,6 +54,8 @@ urlpatterns = [
 
     # Health check endpoint
     path('health/', views.health_check, name='health_check'),
+    # ML-powered Subject Difficulty Analyzer
+    path("subject-difficulty/", subject_difficulty_views.subject_difficulty_analysis, name="subject_difficulty"),
     path('timetable/generate/', timetable_views.generate_timetable, name='timetable_generate'),
     path('timetable/download/', timetable_views.download_timetable, name='timetable_download'),
     path('timetable/template/', timetable_views.timetable_sample_template, name='timetable_template'),

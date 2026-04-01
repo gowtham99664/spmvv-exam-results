@@ -141,8 +141,7 @@ echo ""
 # Backup if redeployment
 if [ "$IS_REDEPLOYMENT" = true ]; then
     echo -e "${BLUE}[2/11] Backing up existing data...${NC}"
-    backup_database
-    BACKUP_RESULT=$?
+    backup_database && BACKUP_RESULT=0 || BACKUP_RESULT=$?
     
     if [ $BACKUP_RESULT -eq 0 ]; then
         BACKUP_FILE="$BACKUP_DIR/db_backup_$TIMESTAMP.sql"

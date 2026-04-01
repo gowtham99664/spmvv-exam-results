@@ -13,9 +13,10 @@ import { validateExcelFile } from '../utils/validation';
 import useEscapeKey from '../hooks/useEscapeKey';
 import DetainedStudentsModal from '../components/DetainedStudentsModal';
 import TimetableModal from '../components/TimetableModal';
+import SubjectDifficultyAnalyzer from '../components/SubjectDifficultyAnalyzer';
 import { 
   FaUpload, FaUsers, FaBullhorn, FaIdCard, FaSearch, 
-  FaCalendar, FaTrash, FaChartBar, FaDownload, FaFileExcel, FaUserSlash, FaTable, FaShieldAlt
+  FaCalendar, FaTrash, FaChartBar, FaDownload, FaFileExcel, FaUserSlash, FaTable, FaShieldAlt, FaBrain
 } from 'react-icons/fa';
 
 const AdminDashboard = () => {
@@ -30,6 +31,7 @@ const AdminDashboard = () => {
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [showDetainedModal, setShowDetainedModal] = useState(false);
   const [showTimetableModal, setShowTimetableModal] = useState(false);
+  const [showDifficultyModal, setShowDifficultyModal] = useState(false);
   const [file, setFile] = useState(null);
   const [year, setYear] = useState('');
   const [semester, setSemester] = useState('');
@@ -375,6 +377,15 @@ const AdminDashboard = () => {
             color="indigo"
             onClick={() => navigate("/admin/audit-logs")}
           />
+
+          {/* ML Subject Difficulty Analyzer Card */}
+          <DashboardCard
+            title="ML Subject Analyzer"
+            description="AI-powered subject difficulty analysis with pass rate predictions and rankings"
+            icon={<FaBrain />}
+            color="orange"
+            onClick={() => setShowDifficultyModal(true)}
+          />
         </div>
 
         {/* Student History Section */}
@@ -662,6 +673,11 @@ const AdminDashboard = () => {
         isOpen={showTimetableModal}
         onClose={() => setShowTimetableModal(false)}
       />
+
+      {/* Subject Difficulty Analyzer Modal */}
+      {showDifficultyModal && (
+        <SubjectDifficultyAnalyzer onClose={() => setShowDifficultyModal(false)} />
+      )}
 
       {/* Toast Notification */}
       {toast.show && (

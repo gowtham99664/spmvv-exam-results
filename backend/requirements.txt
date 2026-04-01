@@ -46,3 +46,7 @@ pandas==2.1.4
 # Timetable Generator
 ortools==9.10.4067
 requests==2.31.0
+
+# ML - Subject Difficulty Analyzer
+scikit-learn==1.4.0
+numpy==1.26.4
