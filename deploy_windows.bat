@@ -37,7 +37,7 @@ echo.
 REM Check if Docker is running
 echo [CHECK] Verifying Docker Desktop...
 docker ps >nul 2>&1
-if errorlevel 1 (
+if !errorlevel! neq 0 (
     echo ERROR: Docker is not running!
     echo Please start Docker Desktop and try again.
     pause
@@ -54,10 +54,10 @@ set IS_REDEPLOYMENT=false
 set BACKUP_FILE=
 
 docker ps -a --format "{{.Names}}" 2>nul | findstr /i "%PROJECT_NAME%_db" >nul 2>&1
-if not errorlevel 1 set IS_REDEPLOYMENT=true
+if !errorlevel! equ 0 set IS_REDEPLOYMENT=true
 
 docker ps -a --format "{{.Names}}" 2>nul | findstr /i "%PROJECT_NAME%_backend" >nul 2>&1
-if not errorlevel 1 set IS_REDEPLOYMENT=true
+if !errorlevel! equ 0 set IS_REDEPLOYMENT=true
 
 if "%IS_REDEPLOYMENT%"=="true" (
     echo   - Existing deployment detected. This is a REDEPLOYMENT.
@@ -73,7 +73,7 @@ echo [STEP 2/9] Database backup...
 if "%IS_REDEPLOYMENT%"=="false" goto :skip_backup
 
 docker ps --format "{{.Names}}" 2>nul | findstr /i "%PROJECT_NAME%_db" >nul 2>&1
-if errorlevel 1 (
+if !errorlevel! neq 0 (
     echo   - Database container not running. Skipping backup.
     goto :skip_backup
 )
@@ -86,7 +86,7 @@ for /f "tokens=2 delims==" %%I in ('wmic os get localdatetime /value') do set dt
 set BACKUP_FILE=%PROJECT_DIR%\backups\db_backup_%dt:~0,14%.sql
 
 docker exec %PROJECT_NAME%_db mysqldump -u %DB_USER% -p%DB_PASSWORD% %DB_NAME% > "%BACKUP_FILE%" 2>nul
-if errorlevel 1 (
+if !errorlevel! neq 0 (
     echo   - WARNING: Backup failed. Continuing without backup.
     set BACKUP_FILE=
 ) else (
@@ -111,7 +111,7 @@ REM Step 4: Network
 REM =============================================================================
 echo [STEP 4/9] Setting up Docker network...
 docker network inspect %PROJECT_NAME%_network >nul 2>&1
-if errorlevel 1 (
+if !errorlevel! neq 0 (
     echo   - Creating network...
     docker network create %PROJECT_NAME%_network
 ) else (
@@ -124,6 +124,7 @@ REM ============================================================================
 REM Step 5: Database
 REM =============================================================================
 echo [STEP 5/9] Deploying database...
+cmd /c "exit /b 0"
 docker run -d --name %PROJECT_NAME%_db ^
   --network %PROJECT_NAME%_network ^
   -e MYSQL_ROOT_PASSWORD=%MYSQL_ROOT_PASSWORD% ^
@@ -134,7 +135,7 @@ docker run -d --name %PROJECT_NAME%_db ^
   -p 3306:3306 ^
   mariadb:10.11
 
-if errorlevel 1 (
+if !errorlevel! neq 0 (
     echo ERROR: Failed to start database container
     pause
     exit /b 1
@@ -149,7 +150,7 @@ if "%BACKUP_FILE%"=="" goto :skip_restore
 
 echo   - Restoring database from backup...
 docker exec -i %PROJECT_NAME%_db mysql -u %DB_USER% -p%DB_PASSWORD% %DB_NAME% < "%BACKUP_FILE%"
-if errorlevel 1 (
+if !errorlevel! neq 0 (
     echo   - WARNING: Restore failed. Database will start fresh.
 ) else (
     echo   - Database restored successfully
@@ -172,28 +173,30 @@ if not exist "Dockerfile" (
 )
 
 docker image inspect %PROJECT_NAME%-ollama:latest >nul 2>&1
-if not errorlevel 1 (
+if !errorlevel! equ 0 (
     echo   - Ollama image already exists. Skipping build.
-    goto :ollama_done
+    goto :ollama_run
 )
 
 echo   - Building Ollama image (downloads qwen2.5:3b ~2GB, may take 5-10 min)...
+cmd /c "exit /b 0"
 docker build -t %PROJECT_NAME%-ollama .
-if errorlevel 1 (
+if !errorlevel! neq 0 (
     echo ERROR: Ollama image build failed!
     pause
     exit /b 1
 )
 echo   - Ollama image built
 
-:ollama_done
+:ollama_run
+cmd /c "exit /b 0"
 docker run -d --name %PROJECT_NAME%_ollama ^
   --network %PROJECT_NAME%_network ^
   -p 11434:11434 ^
   -e OLLAMA_HOST=0.0.0.0:11434 ^
   %PROJECT_NAME%-ollama:latest
 
-if errorlevel 1 (
+if !errorlevel! neq 0 (
     echo ERROR: Failed to start Ollama container
     pause
     exit /b 1
@@ -217,14 +220,16 @@ if not exist "Dockerfile" (
 )
 
 echo   - Building backend image...
+cmd /c "exit /b 0"
 docker build -t %PROJECT_NAME%-backend .
-if errorlevel 1 (
+if !errorlevel! neq 0 (
     echo ERROR: Backend build failed!
     pause
     exit /b 1
 )
 
 echo   - Starting backend container...
+cmd /c "exit /b 0"
 docker run -d --name %PROJECT_NAME%_backend ^
   --network %PROJECT_NAME%_network ^
   -p 8000:8000 ^
@@ -246,7 +251,7 @@ docker run -d --name %PROJECT_NAME%_backend ^
   -e OLLAMA_URL=http://%PROJECT_NAME%_ollama:11434 ^
   %PROJECT_NAME%-backend:latest
 
-if errorlevel 1 (
+if !errorlevel! neq 0 (
     echo ERROR: Failed to start backend container
     pause
     exit /b 1
@@ -270,8 +275,9 @@ if not exist "Dockerfile" (
 )
 
 echo   - Building frontend image (this may take 5-10 minutes)...
+cmd /c "exit /b 0"
 docker build --build-arg VITE_API_URL=/api -t %PROJECT_NAME%-frontend .
-if errorlevel 1 (
+if !errorlevel! neq 0 (
     echo ERROR: Frontend build failed!
     echo.
     echo Common issues:
@@ -283,12 +289,13 @@ if errorlevel 1 (
 )
 
 echo   - Starting frontend container...
+cmd /c "exit /b 0"
 docker run -d --name %PROJECT_NAME%_frontend ^
   --network %PROJECT_NAME%_network ^
   -p 2026:2026 ^
   %PROJECT_NAME%-frontend:latest
 
-if errorlevel 1 (
+if !errorlevel! neq 0 (
     echo ERROR: Failed to start frontend container
     pause
     exit /b 1
