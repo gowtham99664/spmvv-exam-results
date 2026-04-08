@@ -275,10 +275,12 @@ if not exist "Dockerfile" (
 )
 
 echo   - Building frontend image (this may take 5-10 minutes)...
-cmd /c "exit /b 0"
+docker rmi %PROJECT_NAME%-frontend:latest >nul 2>&1
 docker build --build-arg VITE_API_URL=/api -t %PROJECT_NAME%-frontend .
+echo   - Build command completed, verifying image...
+docker image inspect %PROJECT_NAME%-frontend:latest >nul 2>&1
 if !errorlevel! neq 0 (
-    echo ERROR: Frontend build failed!
+    echo ERROR: Frontend build failed! Image not found after build.
     echo.
     echo Common issues:
     echo   - Not enough memory (increase Docker Desktop memory to 4GB+)
@@ -287,16 +289,18 @@ if !errorlevel! neq 0 (
     pause
     exit /b 1
 )
+echo   - Frontend image built successfully
 
 echo   - Starting frontend container...
-cmd /c "exit /b 0"
 docker run -d --name %PROJECT_NAME%_frontend ^
   --network %PROJECT_NAME%_network ^
   -p 2026:2026 ^
   %PROJECT_NAME%-frontend:latest
-
+echo   - Verifying frontend container started...
+docker ps --format "{{.Names}}" | findstr /i "%PROJECT_NAME%_frontend" >nul 2>&1
 if !errorlevel! neq 0 (
     echo ERROR: Failed to start frontend container
+    echo   Check logs: docker logs %PROJECT_NAME%_frontend
     pause
     exit /b 1
 )
