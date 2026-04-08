@@ -1,15 +1,13 @@
 # Stage 1: Build
 FROM node:18-alpine AS builder
 
-ARG APT_PROXY
-ENV http_proxy=${APT_PROXY} https_proxy=${APT_PROXY} HTTP_PROXY=${APT_PROXY} HTTPS_PROXY=${APT_PROXY}
+# Clear any proxy settings inherited from Docker daemon
+ENV http_proxy="" https_proxy="" HTTP_PROXY="" HTTPS_PROXY="" no_proxy="" NO_PROXY=""
 ENV NODE_OPTIONS="--max-old-space-size=1536"
 
 WORKDIR /app
 COPY package.json package-lock.json* ./
 RUN npm install
-
-ENV http_proxy="" https_proxy="" HTTP_PROXY="" HTTPS_PROXY=""
 
 COPY . .
 
