@@ -98,12 +98,23 @@ echo   - Backup step complete
 echo.
 
 REM =============================================================================
-REM Step 3: Stop and remove old containers
+REM Step 3: Stop and remove old containers and images (force fresh build)
 REM =============================================================================
-echo [STEP 3/9] Cleaning up old containers...
+echo [STEP 3/9] Cleaning up old containers and images...
 call docker stop %PROJECT_NAME%_backend %PROJECT_NAME%_frontend %PROJECT_NAME%_db %PROJECT_NAME%_ollama 2>nul
 call docker rm -f %PROJECT_NAME%_backend %PROJECT_NAME%_frontend %PROJECT_NAME%_db %PROJECT_NAME%_ollama 2>nul
 echo   - Old containers removed
+echo   - Removing old backend and frontend images (force fresh build)...
+call docker rmi %PROJECT_NAME%-backend:latest 2>nul
+call docker rmi %PROJECT_NAME%-frontend:latest 2>nul
+echo   - Old images removed
+
+REM If this is a fresh deployment (or previous deploy failed), wipe database volume
+REM to ensure clean migrations from scratch
+if "%IS_REDEPLOYMENT%"=="false" (
+    echo   - Removing old database volume for clean start...
+    call docker volume rm %PROJECT_NAME%_mysql_data 2>nul
+)
 echo.
 
 REM =============================================================================
@@ -216,8 +227,8 @@ if not exist "Dockerfile" (
     exit /b 1
 )
 
-echo   - Building backend image...
-call docker build -t %PROJECT_NAME%-backend .
+echo   - Building backend image (fresh, no cache)...
+call docker build --no-cache -t %PROJECT_NAME%-backend .
 if !errorlevel! neq 0 (
     echo ERROR: Backend build failed!
     pause
