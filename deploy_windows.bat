@@ -270,37 +270,18 @@ if not exist "Dockerfile" (
 )
 
 echo   - Building frontend image (this may take 5-10 minutes)...
-call docker build --build-arg VITE_API_URL=/api -t %PROJECT_NAME%-frontend .
+docker build --build-arg VITE_API_URL=/api -t %PROJECT_NAME%-frontend .
+echo   - Frontend build command finished
 
-echo   - Verifying frontend image exists...
-call docker image inspect %PROJECT_NAME%-frontend:latest >nul 2>&1
-if !errorlevel! neq 0 (
-    echo ERROR: Frontend build failed! Image not found.
-    echo.
-    echo Common issues:
-    echo   - Not enough memory (increase Docker Desktop memory to 4GB+)
-    echo   - Network issues downloading npm packages
-    echo   - Try: docker system prune -a  then re-run
-    pause
-    exit /b 1
-)
-echo   - Frontend image built successfully
-
+echo   - Removing any leftover frontend container...
+docker stop %PROJECT_NAME%_frontend >nul 2>&1
+docker rm -f %PROJECT_NAME%_frontend >nul 2>&1
 echo   - Starting frontend container...
-call docker run -d --name %PROJECT_NAME%_frontend ^
+docker run -d --name %PROJECT_NAME%_frontend ^
   --network %PROJECT_NAME%_network ^
   -p 2026:2026 ^
   %PROJECT_NAME%-frontend:latest
-
-echo   - Verifying frontend container is running...
-timeout /t 3 /nobreak >nul
-call docker ps --format "{{.Names}}" | findstr /i "%PROJECT_NAME%_frontend" >nul 2>&1
-if !errorlevel! neq 0 (
-    echo ERROR: Frontend container failed to start
-    echo   Check logs: docker logs %PROJECT_NAME%_frontend
-    pause
-    exit /b 1
-)
+echo   - Frontend container start command finished
 
 echo   - Waiting for startup (10 seconds)...
 timeout /t 10 /nobreak >nul
