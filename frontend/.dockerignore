@@ -5,7 +5,7 @@ yarn-error.log*
 
 # Build
 dist/
-build/
+# build/ - needed by Dockerfile.prebuilt (deploy_docker.sh)
 
 # IDE
 .vscode/
