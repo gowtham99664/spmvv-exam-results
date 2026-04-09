@@ -5,7 +5,7 @@ yarn-error.log*
 
 # Build
 dist/
-# build/ - removed: prebuilt Docker image needs to COPY this output
+build/
 
 # IDE
 .vscode/
