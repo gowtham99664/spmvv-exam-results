@@ -75,13 +75,14 @@ COPY . .
 # Create logs and media directories
 RUN mkdir -p logs media
 
+# Make startup script executable
+RUN chmod +x startup.sh
+
 # Collect static files (use || true to not fail build if it errors)
 RUN python manage.py collectstatic --noinput || true
 
 # Expose port
 EXPOSE 8000
 
-# Run migrations and start server
-CMD python manage.py migrate && \
-    python manage.py init_admin --force && \
-    gunicorn exam_results.wsgi:application --bind 0.0.0.0:8000 --workers 4
+# Use startup script that cleans stale columns before running migrations
+CMD ["./startup.sh"]
