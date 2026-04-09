@@ -1,9 +1,31 @@
 from django.core.management.base import BaseCommand
 from django.contrib.auth import get_user_model
-from django.db import transaction
+from django.db import connection, transaction
 import os
 
 User = get_user_model()
+
+
+def drop_stale_columns():
+    """Drop old permission columns from results_user if they still exist.
+    This runs raw SQL before any ORM operations to prevent IntegrityError
+    on databases that have stale columns from old migrations."""
+    stale_columns = [
+        "can_manage_users",
+        "can_view_all_branches",
+        "can_upload_results",
+        "can_delete_results",
+        "can_view_statistics",
+    ]
+    with connection.cursor() as cursor:
+        cursor.execute(
+            "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS "
+            "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'results_user'"
+        )
+        existing = {row[0] for row in cursor.fetchall()}
+        for col in stale_columns:
+            if col in existing:
+                cursor.execute(f"ALTER TABLE results_user DROP COLUMN {col}")
 
 
 class Command(BaseCommand):
@@ -46,6 +68,12 @@ class Command(BaseCommand):
                 )
             )
             return
+
+        # Drop stale columns before any ORM operation
+        try:
+            drop_stale_columns()
+        except Exception as e:
+            self.stdout.write(self.style.WARNING(f"Stale column cleanup skipped: {e}"))
 
         try:
             with transaction.atomic():
