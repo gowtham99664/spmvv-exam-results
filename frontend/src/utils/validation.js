@@ -3,7 +3,12 @@ import DOMPurify from 'dompurify';
 // Sanitize input to prevent XSS
 export const sanitizeInput = (input) => {
   if (typeof input !== 'string') return input;
-  return DOMPurify.sanitize(input, { ALLOWED_TAGS: [], ALLOWED_ATTR: [] });
+  try {
+    return DOMPurify.sanitize(input, { ALLOWED_TAGS: [], ALLOWED_ATTR: [] });
+  } catch (e) {
+    // Fallback: strip HTML tags manually if DOMPurify fails
+    return input.replace(/<[^>]*>/g, '');
+  }
 };
 
 // Email validation

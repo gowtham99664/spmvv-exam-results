@@ -269,8 +269,8 @@ if not exist "Dockerfile" (
     exit /b 1
 )
 
-echo   - Building frontend image (this may take 5-10 minutes)...
-docker build --build-arg VITE_API_URL=/api -t %PROJECT_NAME%-frontend .
+echo   - Building frontend image (no-cache, this may take 5-10 minutes)...
+docker build --no-cache -t %PROJECT_NAME%-frontend .
 echo   - Frontend build command finished
 
 echo   - Removing any leftover frontend container...

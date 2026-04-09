@@ -17,7 +17,9 @@ const Login = () => {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: sanitizeInput(value) }));
+    // Don't sanitize password - it can contain any characters
+    const sanitized = name === 'password' ? value : sanitizeInput(value);
+    setFormData(prev => ({ ...prev, [name]: sanitized }));
     if (errors[name]) {
       setErrors(prev => ({ ...prev, [name]: '' }));
     }
