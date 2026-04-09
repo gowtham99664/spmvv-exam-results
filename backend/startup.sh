@@ -40,21 +40,21 @@ conn = MySQLdb.connect(
 )
 cursor = conn.cursor()
 
-# Check if results_user table exists
-cursor.execute(\"SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'results_user'\")
+# NOTE: The User model uses db_table = 'users' (not 'results_user')
+cursor.execute(\"SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users'\")
 if cursor.fetchone()[0] == 0:
-    print('  Table results_user does not exist yet. Skipping.')
+    print('  Table users does not exist yet. Skipping.')
 else:
     cursor.execute(
         \"SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS \"
-        \"WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'results_user'\"
+        \"WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users'\"
     )
     existing = {row[0] for row in cursor.fetchall()}
     stale = ['can_manage_users', 'can_view_all_branches', 'can_upload_results', 'can_delete_results', 'can_view_statistics']
     for col in stale:
         if col in existing:
             print(f'  Dropping stale column: {col}')
-            cursor.execute(f'ALTER TABLE results_user DROP COLUMN {col}')
+            cursor.execute(f'ALTER TABLE users DROP COLUMN {col}')
             conn.commit()
     print('  Stale column cleanup done.')
 

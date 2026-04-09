@@ -7,7 +7,8 @@ User = get_user_model()
 
 
 def drop_stale_columns():
-    """Drop old permission columns from results_user if they still exist.
+    """Drop old permission columns from the users table if they still exist.
+    The User model uses db_table = 'users' (not 'results_user').
     This runs raw SQL before any ORM operations to prevent IntegrityError
     on databases that have stale columns from old migrations."""
     stale_columns = [
@@ -20,12 +21,12 @@ def drop_stale_columns():
     with connection.cursor() as cursor:
         cursor.execute(
             "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS "
-            "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'results_user'"
+            "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users'"
         )
         existing = {row[0] for row in cursor.fetchall()}
         for col in stale_columns:
             if col in existing:
-                cursor.execute(f"ALTER TABLE results_user DROP COLUMN {col}")
+                cursor.execute(f"ALTER TABLE users DROP COLUMN {col}")
 
 
 class Command(BaseCommand):

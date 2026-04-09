@@ -75,8 +75,8 @@ COPY . .
 # Create logs and media directories
 RUN mkdir -p logs media
 
-# Make startup script executable
-RUN chmod +x startup.sh
+# Fix line endings (git clone on Windows converts LF->CRLF, breaks shell scripts in Linux containers)
+RUN sed -i 's/\r$//' startup.sh && chmod +x startup.sh
 
 # Collect static files (use || true to not fail build if it errors)
 RUN python manage.py collectstatic --noinput || true

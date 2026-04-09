@@ -2,14 +2,14 @@ from django.db import migrations
 
 
 def remove_old_columns_if_exist(apps, schema_editor):
-    """Remove old permission columns only if they still exist in the table."""
+    """Remove old permission columns only if they still exist in the table.
+    NOTE: The User model uses db_table = 'users' (not 'results_user')."""
     connection = schema_editor.connection
     cursor = connection.cursor()
 
-    # Get existing columns in the results_user table
     cursor.execute(
         "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS "
-        "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'results_user'"
+        "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users'"
     )
     existing_columns = {row[0] for row in cursor.fetchall()}
 
@@ -23,7 +23,7 @@ def remove_old_columns_if_exist(apps, schema_editor):
 
     for col in old_columns:
         if col in existing_columns:
-            cursor.execute(f"ALTER TABLE results_user DROP COLUMN {col}")
+            cursor.execute(f"ALTER TABLE users DROP COLUMN {col}")
 
 
 class Migration(migrations.Migration):
