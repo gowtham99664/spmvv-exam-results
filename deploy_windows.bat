@@ -36,7 +36,7 @@ echo.
 
 REM Check if Docker is running
 echo [CHECK] Verifying Docker Desktop...
-docker ps >nul 2>&1
+call docker ps >nul 2>&1
 if !errorlevel! neq 0 (
     echo ERROR: Docker is not running!
     echo Please start Docker Desktop and try again.
@@ -85,7 +85,7 @@ REM Generate timestamp for backup filename
 for /f "tokens=2 delims==" %%I in ('wmic os get localdatetime /value') do set dt=%%I
 set BACKUP_FILE=%PROJECT_DIR%\backups\db_backup_%dt:~0,14%.sql
 
-docker exec %PROJECT_NAME%_db mysqldump -u %DB_USER% -p%DB_PASSWORD% %DB_NAME% > "%BACKUP_FILE%" 2>nul
+call docker exec %PROJECT_NAME%_db mysqldump -u %DB_USER% -p%DB_PASSWORD% %DB_NAME% > "%BACKUP_FILE%" 2>nul
 if !errorlevel! neq 0 (
     echo   - WARNING: Backup failed. Continuing without backup.
     set BACKUP_FILE=
@@ -101,8 +101,8 @@ REM ============================================================================
 REM Step 3: Stop and remove old containers
 REM =============================================================================
 echo [STEP 3/9] Cleaning up old containers...
-docker stop %PROJECT_NAME%_backend %PROJECT_NAME%_frontend %PROJECT_NAME%_db %PROJECT_NAME%_ollama 2>nul
-docker rm -f %PROJECT_NAME%_backend %PROJECT_NAME%_frontend %PROJECT_NAME%_db %PROJECT_NAME%_ollama 2>nul
+call docker stop %PROJECT_NAME%_backend %PROJECT_NAME%_frontend %PROJECT_NAME%_db %PROJECT_NAME%_ollama 2>nul
+call docker rm -f %PROJECT_NAME%_backend %PROJECT_NAME%_frontend %PROJECT_NAME%_db %PROJECT_NAME%_ollama 2>nul
 echo   - Old containers removed
 echo.
 
@@ -110,10 +110,10 @@ REM ============================================================================
 REM Step 4: Network
 REM =============================================================================
 echo [STEP 4/9] Setting up Docker network...
-docker network inspect %PROJECT_NAME%_network >nul 2>&1
+call docker network inspect %PROJECT_NAME%_network >nul 2>&1
 if !errorlevel! neq 0 (
     echo   - Creating network...
-    docker network create %PROJECT_NAME%_network
+    call docker network create %PROJECT_NAME%_network
 ) else (
     echo   - Network already exists
 )
@@ -124,8 +124,7 @@ REM ============================================================================
 REM Step 5: Database
 REM =============================================================================
 echo [STEP 5/9] Deploying database...
-cmd /c "exit /b 0"
-docker run -d --name %PROJECT_NAME%_db ^
+call docker run -d --name %PROJECT_NAME%_db ^
   --network %PROJECT_NAME%_network ^
   -e MYSQL_ROOT_PASSWORD=%MYSQL_ROOT_PASSWORD% ^
   -e MYSQL_DATABASE=%DB_NAME% ^
@@ -149,7 +148,7 @@ if "%IS_REDEPLOYMENT%"=="false" goto :skip_restore
 if "%BACKUP_FILE%"=="" goto :skip_restore
 
 echo   - Restoring database from backup...
-docker exec -i %PROJECT_NAME%_db mysql -u %DB_USER% -p%DB_PASSWORD% %DB_NAME% < "%BACKUP_FILE%"
+call docker exec -i %PROJECT_NAME%_db mysql -u %DB_USER% -p%DB_PASSWORD% %DB_NAME% < "%BACKUP_FILE%"
 if !errorlevel! neq 0 (
     echo   - WARNING: Restore failed. Database will start fresh.
 ) else (
@@ -172,15 +171,14 @@ if not exist "Dockerfile" (
     exit /b 1
 )
 
-docker image inspect %PROJECT_NAME%-ollama:latest >nul 2>&1
+call docker image inspect %PROJECT_NAME%-ollama:latest >nul 2>&1
 if !errorlevel! equ 0 (
     echo   - Ollama image already exists. Skipping build.
     goto :ollama_run
 )
 
 echo   - Building Ollama image (downloads qwen2.5:3b ~2GB, may take 5-10 min)...
-cmd /c "exit /b 0"
-docker build -t %PROJECT_NAME%-ollama .
+call docker build -t %PROJECT_NAME%-ollama .
 if !errorlevel! neq 0 (
     echo ERROR: Ollama image build failed!
     pause
@@ -189,8 +187,7 @@ if !errorlevel! neq 0 (
 echo   - Ollama image built
 
 :ollama_run
-cmd /c "exit /b 0"
-docker run -d --name %PROJECT_NAME%_ollama ^
+call docker run -d --name %PROJECT_NAME%_ollama ^
   --network %PROJECT_NAME%_network ^
   -p 11434:11434 ^
   -e OLLAMA_HOST=0.0.0.0:11434 ^
@@ -220,8 +217,7 @@ if not exist "Dockerfile" (
 )
 
 echo   - Building backend image...
-cmd /c "exit /b 0"
-docker build -t %PROJECT_NAME%-backend .
+call docker build -t %PROJECT_NAME%-backend .
 if !errorlevel! neq 0 (
     echo ERROR: Backend build failed!
     pause
@@ -229,8 +225,7 @@ if !errorlevel! neq 0 (
 )
 
 echo   - Starting backend container...
-cmd /c "exit /b 0"
-docker run -d --name %PROJECT_NAME%_backend ^
+call docker run -d --name %PROJECT_NAME%_backend ^
   --network %PROJECT_NAME%_network ^
   -p 8000:8000 ^
   -v %PROJECT_NAME%_media_data:/app/media ^
@@ -275,12 +270,12 @@ if not exist "Dockerfile" (
 )
 
 echo   - Building frontend image (this may take 5-10 minutes)...
-docker rmi %PROJECT_NAME%-frontend:latest >nul 2>&1
-docker build --build-arg VITE_API_URL=/api -t %PROJECT_NAME%-frontend .
-echo   - Build command completed, verifying image...
-docker image inspect %PROJECT_NAME%-frontend:latest >nul 2>&1
+call docker build --build-arg VITE_API_URL=/api -t %PROJECT_NAME%-frontend .
+
+echo   - Verifying frontend image exists...
+call docker image inspect %PROJECT_NAME%-frontend:latest >nul 2>&1
 if !errorlevel! neq 0 (
-    echo ERROR: Frontend build failed! Image not found after build.
+    echo ERROR: Frontend build failed! Image not found.
     echo.
     echo Common issues:
     echo   - Not enough memory (increase Docker Desktop memory to 4GB+)
@@ -292,14 +287,16 @@ if !errorlevel! neq 0 (
 echo   - Frontend image built successfully
 
 echo   - Starting frontend container...
-docker run -d --name %PROJECT_NAME%_frontend ^
+call docker run -d --name %PROJECT_NAME%_frontend ^
   --network %PROJECT_NAME%_network ^
   -p 2026:2026 ^
   %PROJECT_NAME%-frontend:latest
-echo   - Verifying frontend container started...
-docker ps --format "{{.Names}}" | findstr /i "%PROJECT_NAME%_frontend" >nul 2>&1
+
+echo   - Verifying frontend container is running...
+timeout /t 3 /nobreak >nul
+call docker ps --format "{{.Names}}" | findstr /i "%PROJECT_NAME%_frontend" >nul 2>&1
 if !errorlevel! neq 0 (
-    echo ERROR: Failed to start frontend container
+    echo ERROR: Frontend container failed to start
     echo   Check logs: docker logs %PROJECT_NAME%_frontend
     pause
     exit /b 1
