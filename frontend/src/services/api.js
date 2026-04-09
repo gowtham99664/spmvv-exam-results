@@ -9,7 +9,7 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
-  // withCredentials not needed for same-origin requests via nginx proxy
+  withCredentials: true,
 });
 
 // Request interceptor to add auth token

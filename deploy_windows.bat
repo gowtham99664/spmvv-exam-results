@@ -258,20 +258,44 @@ echo   - Backend ready
 echo.
 
 REM =============================================================================
-REM Step 8: Frontend
+REM Step 8: Frontend (host build + Docker package, same as deploy_docker.sh)
 REM =============================================================================
 echo [STEP 8/9] Deploying frontend...
 cd /d "%PROJECT_DIR%\frontend"
 
-if not exist "Dockerfile" (
-    echo ERROR: Frontend Dockerfile not found at %PROJECT_DIR%\frontend\Dockerfile
+echo   - Installing frontend dependencies (npm install)...
+call npm install
+if !errorlevel! neq 0 (
+    echo ERROR: npm install failed!
     pause
     exit /b 1
 )
+echo   - npm install complete
 
-echo   - Building frontend image (no-cache, this may take 5-10 minutes)...
-docker build --no-cache -t %PROJECT_NAME%-frontend .
-echo   - Frontend build command finished
+echo   - Building Vite app...
+echo VITE_API_URL=/api> .env
+call npm run build
+if !errorlevel! neq 0 (
+    echo ERROR: Vite build failed!
+    pause
+    exit /b 1
+)
+echo   - Vite build complete
+
+echo   - Packaging pre-built frontend into Docker image...
+REM Create a temporary Dockerfile that just wraps the pre-built output
+(
+echo FROM nginx:alpine
+echo COPY build /usr/share/nginx/html
+echo COPY nginx.conf /etc/nginx/conf.d/default.conf
+echo RUN rm -f /etc/nginx/conf.d/default.conf.default
+echo EXPOSE 2026
+echo CMD ["nginx", "-g", "daemon off;"]
+) > Dockerfile.prebuilt
+
+docker build -f Dockerfile.prebuilt -t %PROJECT_NAME%-frontend .
+del Dockerfile.prebuilt >nul 2>&1
+echo   - Frontend image built
 
 echo   - Removing any leftover frontend container...
 docker stop %PROJECT_NAME%_frontend >nul 2>&1
@@ -281,7 +305,6 @@ docker run -d --name %PROJECT_NAME%_frontend ^
   --network %PROJECT_NAME%_network ^
   -p 2026:2026 ^
   %PROJECT_NAME%-frontend:latest
-echo   - Frontend container start command finished
 
 echo   - Waiting for startup (10 seconds)...
 timeout /t 10 /nobreak >nul
